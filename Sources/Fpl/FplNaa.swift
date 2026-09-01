@@ -13,6 +13,7 @@ struct FplNaa: View {
     let lager: FplLager
     @State private var nå = Date()          // driver nedtellingen mellom hentingene
     @State private var visOpphav: Opphav?
+    @State private var visSporsmal: [String]?
 
     /// Hvert tall som bærer en beslutning skal kunne trykkes på og vise hvor det kom fra
     /// og hvor gammelt det er. Det er ikke pynt — det er produktet.
@@ -33,6 +34,7 @@ struct FplNaa: View {
                     anbefalingskort(s)
                     lagoversikt(s.data)
                     tropp(s.data)
+                    Ordlisteknapp().padding(.top, 2)
                 } else if let f = lager.feil {
                     Label(f, systemImage: "exclamationmark.triangle")
                         .font(.footnote).foregroundStyle(Farge.avvik)
@@ -51,6 +53,28 @@ struct FplNaa: View {
         .task { await lager.følg() }
         .refreshable { await lager.last() }
         .sheet(item: $visOpphav) { o in opphavsark(o) }
+        .sheet(item: $visSporsmal) { sp in sporsmaalsark(sp) }
+    }
+
+    /// Anbefalingen som én setning, satt sammen av `bytter`, `endrer_oppstilling`,
+    /// `kaptein` og `chip`. Ingen tolkning av fritekst — bare feltene, sagt på norsk.
+    private func handling(_ a: FplStatus.Anbefaling) -> String {
+        var deler: [String] = []
+        let bytter = a.bytter ?? []
+        if let b = bytter.first, bytter.count == 1, let inn = b.inn?.navn, let ut = b.ut?.navn {
+            deler.append("Bytt inn \(inn) for \(ut).")
+        } else if !bytter.isEmpty {
+            deler.append("Gjør \(bytter.count) bytter.")
+        } else if a.endrer_oppstilling == true {
+            deler.append("Endre oppstillingen.")
+        } else {
+            deler.append("Gjør ingenting — laget står som det er.")
+        }
+        if let k = a.kaptein?.navn {
+            deler.append(a.vise?.navn.map { "\(k) er kaptein, \($0) er vise." } ?? "\(k) er kaptein.")
+        }
+        if let c = a.chip { deler.append("Bruk chip: \(c).") }
+        return deler.joined(separator: " ")
     }
 
     // MARK: nedtelling
@@ -135,6 +159,11 @@ struct FplNaa: View {
                 Text("ANBEFALING").font(.caption2.weight(.semibold)).foregroundStyle(Farge.dempet)
 
                 if let a {
+                    // Setningen først. De strukturerte feltene ER forståelige; det er
+                    // fritekstet som ikke er det, og da skal fritekstet ikke stå øverst.
+                    Text(handling(a))
+                        .font(.callout.weight(.medium)).foregroundStyle(Farge.tekst)
+                        .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 14) {
                         if let k = a.kaptein { rolle("Kaptein", k.navn, k.klubb) }
                         if let v = a.vise { rolle("Vise", v.navn, v.klubb) }
@@ -152,9 +181,15 @@ struct FplNaa: View {
                         if let c = a.chip { Text("· chip: \(c)").font(.caption2).foregroundStyle(Diagramfarge.varsel) }
                     }
                     .foregroundStyle(Farge.dempet)
+                    // Vaktas eget notat er en arbeidslogg med forkortelser og filnavn.
+                    // Den skal være tilgjengelig, men ikke være det første man møter.
                     if let n = a.notat {
-                        Text(n).font(.caption2).foregroundStyle(Farge.dempet)
-                            .fixedSize(horizontal: false, vertical: true)
+                        DisclosureGroup("Vaktas notat") {
+                            Text(n).font(.caption2).foregroundStyle(Farge.dempet)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 4)
+                        }
+                        .font(.caption2).tint(Farge.svak).foregroundStyle(Farge.dempet)
                     }
                 } else if let b = s.data.bytte_status {
                     Text(b).font(.footnote).foregroundStyle(Farge.tekst)
@@ -177,39 +212,33 @@ struct FplNaa: View {
         }
     }
 
+    /// Åpne spørsmål er vaktas arbeidsnotater — seks punkter på opptil 4 400 tegn. De
+    /// hører til anbefalingen, men de kan ikke stå på hovedskjermen: da er det de man
+    /// leser i stedet for hva man skal gjøre.
     private func resten(_ s: FplSvar) -> some View {
         Group {
             if let sp = s.data.aapne_sporsmal, !sp.isEmpty {
-                VStack(alignment: .leading, spacing: 3) {
-                    Divider().overlay(Farge.strek)
-                    Text("Åpne spørsmål som bærer den (\(sp.count))")
-                        .font(.caption2.weight(.medium)).foregroundStyle(Diagramfarge.varsel)
-                    // Hvert punkt er et helt arbeidsnotat på flere avsnitt. Utskrevet
-                    // spiste de hele skjermen og begravde anbefalingen de hører til.
-                    // Førstesetningen er sammendraget; resten ligger ett trykk unna.
-                    ForEach(sp.prefix(4), id: \.self) { q in
-                        DisclosureGroup {
-                            Text(q).font(.caption2).foregroundStyle(Farge.dempet)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.top, 3)
-                        } label: {
-                            Text(overskrift(q)).font(.caption2).foregroundStyle(Farge.dempet)
-                                .lineLimit(2).multilineTextAlignment(.leading)
-                        }
-                        .tint(Farge.svak)
+                Divider().overlay(Farge.strek)
+                Button { visSporsmal = sp } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "questionmark.circle").font(.caption2)
+                        Text("\(sp.count) åpne spørsmål bak anbefalingen").font(.caption2)
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.system(size: 10))
                     }
+                    .foregroundStyle(Diagramfarge.varsel)
                 }
             }
         }
     }
 
-    /// Førstesetningen, eller de første ordene om notatet ikke har noen. Bare et
-    /// sammendrag — hele teksten står under, uforkortet.
+    /// Førstesetningen i et notat, brukt som overskrift.
+    ///
+    /// Flere notater åpner med en datostempel-stump («NY 28/8:»). Kutter vi på første
+    /// skilletegn blir overskriften den stumpen, som ikke sier noe — så vi går videre til
+    /// det første bruddet som faktisk gir en setning.
     private func overskrift(_ tekst: String) -> String {
         let ren = tekst.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Flere notater åpner med en datostempel-stump («NY 28/8:»). Kutter vi på første
-        // skilletegn blir overskriften den stumpen, som ikke sier noe. Vi går videre til
-        // det første bruddet som faktisk gir en setning.
         var fra = ren.startIndex
         while let brudd = ren[fra...].firstIndex(where: { $0 == "." || $0 == ":" }) {
             let stykke = ren[ren.startIndex..<brudd].trimmingCharacters(in: .whitespaces)
@@ -330,4 +359,40 @@ struct FplNaa: View {
         .background(Farge.flate)
         .presentationDetents([.height(240)])
     }
+
+    /// Arket med de åpne spørsmålene. Overskrift per punkt, hele teksten bak et trykk.
+    private func sporsmaalsark(_ sp: [String]) -> some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Spørsmål vakta ikke har svart på ennå. De endrer ikke "
+                         + "anbefalingen, men de er grunnen til at den kan endre seg.")
+                        .font(.caption2).foregroundStyle(Farge.svak)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ForEach(sp, id: \.self) { q in
+                        DisclosureGroup {
+                            Text(q).font(.caption2).foregroundStyle(Farge.dempet)
+                                .fixedSize(horizontal: false, vertical: true).padding(.top, 3)
+                        } label: {
+                            Text(overskrift(q)).font(.footnote).foregroundStyle(Farge.tekst)
+                                .multilineTextAlignment(.leading)
+                        }
+                        .tint(Farge.svak)
+                    }
+                }
+                .padding(16)
+            }
+            .background(Farge.flate)
+            .scrollIndicators(.hidden)
+            .navigationTitle("Åpne spørsmål")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Farge.flate, for: .navigationBar)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Lukk") { visSporsmal = nil } } }
+        }
+    }
+}
+
+/// `[String]` må være Identifiable for å kunne styre et ark.
+extension Array: @retroactive Identifiable where Element == String {
+    public var id: String { joined() }
 }

@@ -36,6 +36,7 @@ struct FplBeslutning: View {
                 } else {
                     ProgressView().tint(Farge.dempet).frame(maxWidth: .infinity).padding(.top, 40)
                 }
+                if tri != nil { Ordlisteknapp() }
             }
             .padding(16)
         }
@@ -67,9 +68,21 @@ struct FplBeslutning: View {
                 statusmerke(b.status)
             }
 
-            legende(a?.navn ?? "A", bb?.navn ?? "B")
-            dumbbell(b)
-            if let s = b.signalsum { balanse(s) }
+            // Svaret først, i én setning. Diagrammet er begrunnelsen, og begrunnelsen
+            // skal ikke stå foran svaret — da leser man seg gjennom fire signalrader før
+            // man vet hva som ble valgt.
+            Text(dommen(b)).font(.callout.weight(.medium)).foregroundStyle(Farge.tekst)
+                .fixedSize(horizontal: false, vertical: true)
+
+            DisclosureGroup("Vis signalene (\(b.signaler.count))") {
+                VStack(alignment: .leading, spacing: 12) {
+                    legende(a?.navn ?? "A", bb?.navn ?? "B")
+                    dumbbell(b)
+                    if let s = b.signalsum { balanse(s) }
+                }
+                .padding(.top, 8)
+            }
+            .font(.caption2).tint(Farge.svak).foregroundStyle(Farge.dempet)
 
             if let k = b.konklusjon {
                 avsnitt("Konklusjon", k, Farge.tekst)
@@ -82,6 +95,25 @@ struct FplBeslutning: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Farge.kort)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    /// Beslutningen som én setning: hva ble valgt, og hvor mange signaler støttet det.
+    /// Alt sammen fra strukturerte felter — ingen tolkning av fritekst.
+    private func dommen(_ b: FplTriangulering.Beslutning) -> String {
+        let valgt = b.alternativer.first { $0.anbefalt == true }?.navn
+        let sum = b.signalsum
+        let antall = b.signaler.count
+        let forA = sum?.peker_mot_A ?? 0, forB = sum?.peker_mot_B ?? 0
+        let støtte = max(forA, forB)
+
+        if b.status == "forkastet" {
+            return valgt.map { "Forkastet — \($0) ble vurdert, men ikke valgt." }
+                ?? "Vurdert og forkastet."
+        }
+        guard let valgt else { return "Ingen konklusjon ennå." }
+        let verb = b.status == "utfort" ? "Valgt" : "Anbefalt"
+        guard antall > 0, støtte > 0 else { return "\(verb): \(valgt)." }
+        return "\(verb): \(valgt). \(støtte) av \(antall) signaler peker på ham."
     }
 
     private func statusmerke(_ s: String) -> some View {
