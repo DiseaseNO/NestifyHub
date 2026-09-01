@@ -31,6 +31,9 @@ struct FplHelse: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Farge.flate, for: .navigationBar)
         .refreshable { await lager.last() }
+        // Lageret deles med «Nå», men Helse kan være det første man ser (dyplenke, eller
+        // fanen man forlot appen på). Uten dette ble den stående på spinneren for alltid.
+        .task { if lager.svar == nil { await lager.last() } }
     }
 
     // MARK: kilder

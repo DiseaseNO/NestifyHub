@@ -206,7 +206,10 @@ func varighet(_ sek: TimeInterval, kort: Bool = false) -> String {
 struct FplTriangulering: Decodable {
     let versjon: Int
     let generert: String
-    let runde: Int
+    /// Null i praksis — rundenummeret står på hver beslutning, ikke på toppen. Var
+    /// erklært som `Int` og gjorde at HELE filen ikke lot seg lese: skjermen sto med
+    /// «ingen beslutninger å vise» selv om det lå seks der.
+    let runde: Int?
     let beslutninger: [Beslutning]
 
     struct Beslutning: Decodable, Identifiable {

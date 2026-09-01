@@ -184,13 +184,33 @@ struct FplNaa: View {
                     Divider().overlay(Farge.strek)
                     Text("Åpne spørsmål som bærer den (\(sp.count))")
                         .font(.caption2.weight(.medium)).foregroundStyle(Diagramfarge.varsel)
-                    ForEach(sp.prefix(3), id: \.self) { q in
-                        Text("• " + q).font(.caption2).foregroundStyle(Farge.dempet)
-                            .fixedSize(horizontal: false, vertical: true)
+                    // Hvert punkt er et helt arbeidsnotat på flere avsnitt. Utskrevet
+                    // spiste de hele skjermen og begravde anbefalingen de hører til.
+                    // Førstesetningen er sammendraget; resten ligger ett trykk unna.
+                    ForEach(sp.prefix(4), id: \.self) { q in
+                        DisclosureGroup {
+                            Text(q).font(.caption2).foregroundStyle(Farge.dempet)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 3)
+                        } label: {
+                            Text(overskrift(q)).font(.caption2).foregroundStyle(Farge.dempet)
+                                .lineLimit(2).multilineTextAlignment(.leading)
+                        }
+                        .tint(Farge.svak)
                     }
                 }
             }
         }
+    }
+
+    /// Førstesetningen, eller de første ordene om notatet ikke har noen. Bare et
+    /// sammendrag — hele teksten står under, uforkortet.
+    private func overskrift(_ tekst: String) -> String {
+        let ren = tekst.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let punktum = ren.firstIndex(where: { $0 == "." || $0 == ":" }), ren.distance(from: ren.startIndex, to: punktum) < 90 {
+            return String(ren[..<punktum])
+        }
+        return ren.count > 90 ? String(ren.prefix(90)) + "…" : ren
     }
 
     // MARK: lag
