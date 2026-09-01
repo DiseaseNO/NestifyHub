@@ -45,7 +45,7 @@ private func seedFraOppstartsargumenter() {
 }
 #endif
 
-/// Modulvelgeren. Foreløpig tom — modulene legges inn her etter hvert.
+/// Modulvelgeren.
 struct Hovedvisning: View {
     let api: API
 
@@ -53,17 +53,18 @@ struct Hovedvisning: View {
         NavigationStack {
             ZStack {
                 Farge.flate.ignoresSafeArea()
-                VStack(spacing: 10) {
-                    Image(systemName: "square.grid.2x2")
-                        .font(.system(size: 40, weight: .light))
-                        .foregroundStyle(Farge.aksent)
-                    Text("Tilkoblet")
-                        .font(.title3.weight(.medium))
-                        .foregroundStyle(Farge.tekst)
-                    Text("Ingen moduler ennå.")
-                        .font(.footnote)
-                        .foregroundStyle(Farge.dempet)
+                List {
+                    Section {
+                        NavigationLink { FplModul(api: api) } label: {
+                            modul("Fantasy", "sportscourt", "anbefaling, tropp og helse")
+                        }
+                    } header: {
+                        Text("Moduler").font(.caption).foregroundStyle(Farge.dempet)
+                    }
                 }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+                .scrollIndicators(.hidden)
             }
             .navigationTitle("Nestify Hub")
             .toolbarBackground(Farge.flate, for: .navigationBar)
@@ -75,6 +76,16 @@ struct Hovedvisning: View {
                         }
                     } label: { Image(systemName: "ellipsis.circle") }
                 }
+            }
+        }
+    }
+
+    private func modul(_ tittel: String, _ ikon: String, _ under: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: ikon).font(.footnote).foregroundStyle(Farge.aksent).frame(width: 22)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(tittel).font(.subheadline).foregroundStyle(Farge.tekst)
+                Text(under).font(.caption2).foregroundStyle(Farge.svak)
             }
         }
     }
