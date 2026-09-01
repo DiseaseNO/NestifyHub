@@ -62,7 +62,10 @@ struct FplBeslutning: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(b.sporsmal).font(.subheadline.weight(.medium)).foregroundStyle(Farge.tekst)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(b.type).font(.caption2).foregroundStyle(Farge.svak)
+                    Forklar(nøkkel: b.type) {
+                        Text(Ordliste.etikett(b.type)).font(.caption2).foregroundStyle(Farge.svak)
+                            .underline(Ordliste.finn(b.type) != nil, pattern: .dot)
+                    }
                 }
                 Spacer()
                 statusmerke(b.status)
@@ -120,13 +123,20 @@ struct FplBeslutning: View {
         return "\(verb): \(valgt). \(støtte) av \(antall) signaler peker på ham."
     }
 
+    /// Merkelappen viser kildens status på norsk, og forklarer seg selv ved trykk —
+    /// «utfort» sier ingenting til den som ikke har skrevet systemet.
     private func statusmerke(_ s: String) -> some View {
         let farge: Color = s == "anbefalt" ? Diagramfarge.god : (s == "forkastet" ? Farge.svak : Diagramfarge.varsel)
-        return Text(s)
+        return Forklar(nøkkel: s) {
+            HStack(spacing: 3) {
+                Text(Ordliste.etikett(s))
+                if Ordliste.finn(s) != nil { Image(systemName: "questionmark.circle").font(.system(size: 9)) }
+            }
             .font(.caption2.weight(.medium))
             .padding(.horizontal, 7).padding(.vertical, 3)
             .background(farge.opacity(0.18)).foregroundStyle(farge)
             .clipShape(Capsule())
+        }
     }
 
     /// Legende ALLTID ved to serier, og plassert OVER diagrammet — under kolliderer den
@@ -165,16 +175,22 @@ struct FplBeslutning: View {
                         Image(systemName: s.serFramover ? "arrow.forward.circle" : "arrow.uturn.backward.circle")
                             .font(.system(size: 10))
                         Text(s.navn).font(.caption2).foregroundStyle(Farge.tekst)
-                        Text(s.serFramover ? "framover" : "bakover")
-                            .font(.system(size: 9)).foregroundStyle(Farge.svak)
+                        Forklar(nøkkel: s.serFramover ? "framover" : "bakover") {
+                            Text(s.serFramover ? "framover" : "bakover")
+                                .font(.system(size: 9)).foregroundStyle(Farge.svak)
+                                .underline(true, pattern: .dot)
+                        }
                         // Lengst til høyre = størst tall, som for en plassering betyr
                         // dårligst. Uten dette leses raden stikk motsatt av hva den sier.
                         if s.enhet == "plass" {
                             Text("lavest er best").font(.system(size: 9)).foregroundStyle(Farge.svak)
                         }
                         if let v = s.vekt, v != "middels" {
-                            Text("vekt \(v == "hoy" ? "høy" : v)")
-                                .font(.system(size: 9)).foregroundStyle(Farge.svak)
+                            Forklar(nøkkel: "vekt") {
+                                Text("vekt \(v == "hoy" ? "høy" : v)")
+                                    .font(.system(size: 9)).foregroundStyle(Farge.svak)
+                                    .underline(true, pattern: .dot)
+                            }
                         }
                         Spacer()
                     }

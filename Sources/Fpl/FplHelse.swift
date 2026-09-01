@@ -16,6 +16,7 @@ struct FplHelse: View {
                     kvote(s.data)
                     modell(s.data)
                     risikoer(s.data)
+                    Ordlisteknapp()
                 } else if let f = lager.feil {
                     Label(f, systemImage: "exclamationmark.triangle")
                         .font(.footnote).foregroundStyle(Farge.avvik)
@@ -89,7 +90,11 @@ struct FplHelse: View {
                             .font(.caption).foregroundStyle(Diagramfarge.status(s.status))
                         Text(s.navn).font(.caption).foregroundStyle(Farge.tekst)
                         Spacer()
-                        Text(s.status).font(.system(size: 10)).foregroundStyle(Diagramfarge.status(s.status))
+                        Forklar(nøkkel: s.status) {
+                            Text(Ordliste.etikett(s.status).lowercased())
+                                .font(.system(size: 10)).foregroundStyle(Diagramfarge.status(s.status))
+                                .underline(Ordliste.finn(s.status) != nil, pattern: .dot)
+                        }
                     }
                 }
                 .tint(Farge.dempet)

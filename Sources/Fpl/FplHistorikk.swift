@@ -24,6 +24,7 @@ struct FplHistorikk_Visning: View {
                     // Nyeste runde øverst, men beslutningene INNI hver runde står i
                     // rekkefølgen de ble tatt.
                     ForEach(h.runder.sorted { $0.runde > $1.runde }) { r in runde(r) }
+                    Ordlisteknapp()
                 } else if lastet {
                     Text("Ingen historikk å vise.").font(.footnote).foregroundStyle(Farge.svak)
                 } else {
@@ -139,11 +140,18 @@ struct FplHistorikk_Visning: View {
     private func utfall(holdt: Bool?, poeng: Int?, spriker: Bool, kommentar: String?) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             if let h = holdt {
-                // Ikon OG tekst — fargen alene skal aldri bære betydningen.
-                Label(h ? "Premisset holdt" : "Premisset holdt ikke",
-                      systemImage: h ? "checkmark.seal.fill" : "xmark.seal.fill")
+                // Ikon OG tekst — fargen alene skal aldri bære betydningen. Og selve
+                // begrepet forklarer seg ved trykk: skillet mellom «riktig vurdert» og
+                // «gikk bra» er hele poenget med skjermen, og det er ikke selvsagt.
+                Forklar(nøkkel: "premiss_holdt") {
+                    HStack(spacing: 4) {
+                        Label(h ? "Premisset holdt" : "Premisset holdt ikke",
+                              systemImage: h ? "checkmark.seal.fill" : "xmark.seal.fill")
+                        Image(systemName: "questionmark.circle").font(.system(size: 10))
+                    }
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(h ? Diagramfarge.god : Diagramfarge.alvorlig)
+                }
             }
             if let k = kommentar {
                 Text(k).font(.system(size: 10)).foregroundStyle(Farge.dempet)

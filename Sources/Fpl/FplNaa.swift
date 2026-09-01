@@ -23,6 +23,8 @@ struct FplNaa: View {
     struct Opphav: Identifiable {
         let id = UUID()
         let tittel: String, verdi: String, kilde: String, alder: String
+        /// Hva tallet betyr, fra ordlista. Uten forklaring er tallet bare et tall.
+        let betyr: String?
     }
 
     private let takt = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -251,18 +253,19 @@ struct FplNaa: View {
 
     private func lagoversikt(_ d: FplStatus) -> some View {
         HStack(spacing: 10) {
-            rute("Verdi", String(format: "%.1f", d.lag.verdi), "lagverdi i millioner")
-            rute("Bank", String(format: "%.1f", d.lag.bank), "ubrukt beløp")
-            rute("Frie bytter", "\(d.lag.frie_bytter)", "bytter uten poengtrekk")
+            rute("Verdi", String(format: "%.1f", d.lag.verdi), "lagverdi i millioner", "verdi")
+            rute("Bank", String(format: "%.1f", d.lag.bank), "ubrukt beløp", "bank")
+            rute("Frie bytter", "\(d.lag.frie_bytter)", "bytter uten poengtrekk", "frie_bytter")
             // poeng_totalt er null før runden er spilt — vis strek, ikke 0.
-            rute("Poeng", d.lag.poeng_totalt.map(String.init) ?? "—", "totalt i sesongen")
+            rute("Poeng", d.lag.poeng_totalt.map(String.init) ?? "—", "totalt i sesongen", "poeng")
         }
     }
 
-    private func rute(_ tittel: String, _ verdi: String, _ hva: String) -> some View {
+    private func rute(_ tittel: String, _ verdi: String, _ hva: String, _ nøkkel: String) -> some View {
         Button {
             visOpphav = .init(tittel: tittel, verdi: verdi, kilde: hva,
-                              alder: lager.dataAlder.map { varighet($0) + " gammel" } ?? "ukjent alder")
+                              alder: lager.dataAlder.map { varighet($0) + " gammel" } ?? "ukjent alder",
+                              betyr: Ordliste.finn(nøkkel)?.hva)
         } label: {
             VStack(spacing: 2) {
                 Text(verdi).font(.title3.weight(.medium).monospacedDigit()).foregroundStyle(Farge.tekst)
@@ -321,8 +324,10 @@ struct FplNaa: View {
             // den UAVHENGIGE kilden. Å vise et underkjent tall alene ville vært å påstå
             // mer enn systemet står inne for.
             if let f = s.forventet, let x = f.xp_fplform {
-                Text(String(format: "%.1f xP", x))
-                    .font(.system(size: 9).monospacedDigit()).foregroundStyle(Diagramfarge.serie1)
+                Forklar(nøkkel: "xp_fplform") {
+                    Text(String(format: "%.1f xP", x))
+                        .font(.system(size: 9).monospacedDigit()).foregroundStyle(Diagramfarge.serie1)
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -346,6 +351,10 @@ struct FplNaa: View {
             Text(o.tittel).font(.headline).foregroundStyle(Farge.tekst)
             Text(o.verdi).font(.system(size: 40, weight: .light).monospacedDigit())
                 .foregroundStyle(Farge.tekst)
+            if let b = o.betyr {
+                Text(b).font(.footnote).foregroundStyle(Farge.dempet)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Divider().overlay(Farge.strek)
             Label(o.kilde, systemImage: "arrow.triangle.branch").font(.footnote)
             Label(o.alder, systemImage: "clock").font(.footnote)
@@ -355,7 +364,7 @@ struct FplNaa: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Farge.flate)
-        .presentationDetents([.height(240)])
+        .presentationDetents([.medium])
     }
 
     /// Arket med de åpne spørsmålene. Overskrift per punkt, hele teksten bak et trykk.
