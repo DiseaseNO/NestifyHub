@@ -57,6 +57,18 @@ struct FplStatus: Decodable {
         }
         private enum Nøkler: String, CodingKey { case tittel, sammendrag, tekst, alvor, siden, blokkerer }
     }
+    /// Hva som er endret siden forrige eksport. Tom liste betyr «ingenting nytt» —
+    /// det er forskjellen på en app og et dokument.
+    let endret: [Endring]?
+
+    struct Endring: Decodable, Identifiable {
+        let felt: String?
+        let fra: String?
+        let til: String?
+        let beskrivelse: String?
+        var id: String { (felt ?? "") + (fra ?? "") + (til ?? "") + (beskrivelse ?? "") }
+    }
+
     /// Kildens egen ordbok: hva verdiene og tallene deres betyr, med deres ord.
     ///
     /// Vi oversetter ikke lenger domenet selv — kilden tar beslutningene og er den eneste
@@ -178,6 +190,10 @@ struct FplStatus: Decodable {
         let http: Int?
         let innholdstreff: Int?
         let status: String
+        /// Hva svaret brukes til. Uten den ser man at kilden svarte 200, men ikke hva
+        /// det betyr at den er nede.
+        let brukes_til: String?
+        let sist_lest: String?
         var id: String { navn }
     }
 }
@@ -365,4 +381,42 @@ extension FplLager {
 struct Innpakket<T: Decodable>: Decodable {
     let kilde: FplSvar.Kilde
     let data: T
+}
+
+/// «Statistikk» — regnskapet over egne beslutninger.
+///
+/// Kilden advarer selv: med få spilte runder er ratene støy. `n` står ved hver rate, og
+/// signalseksjonen skjules helt til `n` er stor nok — en rangering ser autoritativ ut
+/// uansett hvor tynt grunnlaget er.
+struct FplStatistikk: Decodable {
+    let versjon: Int
+    let generert: String
+    let advarsel: String?
+    let premiss: Premiss?
+    let kaptein: Kaptein?
+    let bytter: Bytter?
+    let signaler: [String: Signal]?
+
+    /// Under denne grensen viser vi ikke treffrater. Kildens egen anbefaling.
+    static let nokGrunnlag = 10
+
+    struct Premiss: Decodable {
+        let holdt: Int?, brast: Int?
+        let holdt_men_tapte: Int?, brast_men_vant: Int?
+    }
+    struct Kaptein: Decodable { let traff: Int?; let n: Int?; let tapt_totalt: Int? }
+    struct Bytter: Decodable { let antall: Int?; let sum_effekt: Int?; let sum_trekk: Int?; let netto: Int? }
+    struct Signal: Decodable {
+        let n: Int?
+        let traff: Int?
+        let retning: String?
+        let vekt_brukt: String?
+        let treffrate: Double?
+    }
+}
+
+extension FplLager {
+    func hentStatistikk(_ api: API) async -> FplStatistikk? {
+        try? await api.hent(Innpakket<FplStatistikk>.self, "/api/fpl/statistikk").data
+    }
 }

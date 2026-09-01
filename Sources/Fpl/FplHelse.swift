@@ -53,7 +53,14 @@ struct FplHelse: View {
                         .font(.caption).foregroundStyle(Diagramfarge.status(k.status))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(k.navn).font(.caption.weight(.medium)).foregroundStyle(Farge.tekst)
-                        Text(k.status).font(.system(size: 10)).foregroundStyle(Diagramfarge.status(k.status))
+                        // Hva kilden brukes til: uten den ser man at den svarte 200,
+                        // men ikke hva det koster at den er nede.
+                        if let b = k.brukes_til {
+                            Text(b).font(.system(size: 10)).foregroundStyle(Farge.svak)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            Text(k.status).font(.system(size: 10)).foregroundStyle(Diagramfarge.status(k.status))
+                        }
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 1) {
@@ -61,6 +68,9 @@ struct FplHelse: View {
                             .font(.system(size: 10).monospacedDigit()).foregroundStyle(Farge.dempet)
                         Text(k.innholdstreff.map { "\($0) treff" } ?? "innhold ikke målt")
                             .font(.system(size: 10)).foregroundStyle(Farge.svak)
+                        if let t = k.sist_lest, let n = klokkeslett(t) {
+                            Text("lest \(n)").font(.system(size: 9)).foregroundStyle(Farge.svak)
+                        }
                     }
                 }
             }
@@ -182,6 +192,17 @@ struct FplHelse: View {
                 }
             }
         }
+    }
+
+    /// Klokkeslettet fra et ISO-tidspunkt. Dato er unødvendig — kildene leses hver runde.
+    private func klokkeslett(_ iso: String) -> String? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let d = f.date(from: iso) ?? ISO8601DateFormatter().date(from: iso) else { return nil }
+        let ut = DateFormatter()
+        ut.locale = Locale(identifier: "nb_NO")
+        ut.dateFormat = "HH:mm"
+        return ut.string(from: d)
     }
 
     private func boks<I: View>(_ tittel: String, @ViewBuilder _ innhold: () -> I) -> some View {

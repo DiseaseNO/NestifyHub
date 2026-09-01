@@ -36,6 +36,7 @@ struct FplNaa: View {
                     if s.data.versjon > FplStatus.støttetVersjon { nyereKontrakt(s.data.versjon) }
                     topp(s)
                     dataAlder(s)
+                    endringer(s.data)
                     anbefalingskort(s)
                     lagoversikt(s.data)
                     tropp(s.data)
@@ -89,6 +90,27 @@ struct FplNaa: View {
         }
         if let c = a.chip { deler.append("Bruk chip: \(c).") }
         return deler.joined(separator: " ")
+    }
+
+    /// Hva som er nytt siden forrige eksport. Tom liste vises ikke — «ingenting er
+    /// endret» er ikke verdt en rad, men en endring er det man åpner appen for.
+    @ViewBuilder
+    private func endringer(_ d: FplStatus) -> some View {
+        if let e = d.endret, !e.isEmpty {
+            VStack(alignment: .leading, spacing: 5) {
+                Label("Nytt siden sist", systemImage: "sparkles")
+                    .font(.caption.weight(.semibold)).foregroundStyle(Diagramfarge.god)
+                ForEach(e) { x in
+                    Text(x.beskrivelse ?? [x.felt, x.fra, x.til].compactMap { $0 }.joined(separator: " → "))
+                        .font(.caption2).foregroundStyle(Farge.dempet)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Diagramfarge.god.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
     }
 
     // MARK: nedtelling
