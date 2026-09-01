@@ -1,4 +1,4 @@
-# Navet
+# Nestify Hub
 
 Samleapp for husholdet, til mobil. **Foreløpig et tomt skall** — prosjektfil, signering og
 TestFlight-løype står klart, men appen har ingen moduler og ingen datalag ennå.
@@ -10,8 +10,8 @@ Kameraene bor i sin egen app (`CameraRelay`) og skal ikke inn her.
 | | | |
 |---|---|---|
 | Bundle-ID | `no.gustavs1.hjemme` | permanent — bytte betyr ny app i App Store Connect, nye profiler og ny paring på hver enhet |
-| Visningsnavn | **Navet** | settes av secreten `DISPLAY_NAME`, kan byttes uten kodeendring |
-| Repo / prosjekt / scheme | `Navet` | internt navn, følger repoet |
+| Visningsnavn | **Nestify Hub** | settes av secreten `DISPLAY_NAME`, kan byttes uten kodeendring |
+| Repo / prosjekt / scheme | `Navet` | **internt** navn. Var visningsnavnet en periode; endres ikke, for det koster mer enn det smaker |
 
 Appen er ikke et smarthus — den samler husholdet: lys og varme, strøm, bilene,
 handleliste, kalender, søppel, barnas oppgaver og FPL. Navnet er valgt så det tåler at
@@ -46,7 +46,7 @@ Samme sett som `CameraRelay` bruker. Uten dem stopper TestFlight-jobben.
 | `APPLE_TEAM_ID` | Apple Developer team-ID |
 | `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_BASE64` | App Store Connect API-nøkkel |
 | `MATCH_GIT_URL`, `MATCH_GIT_BASIC_AUTHORIZATION`, `MATCH_PASSWORD` | sertifikat-repoet til fastlane match |
-| `DISPLAY_NAME` | `Navet` — navnet under ikonet. Må være unikt på App Store (ITMS-90129) |
+| `DISPLAY_NAME` | `Nestify Hub` — navnet under ikonet. Må være unikt på App Store (ITMS-90129) |
 
 ### App Store Connect
 

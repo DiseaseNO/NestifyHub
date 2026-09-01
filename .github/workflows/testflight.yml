@@ -40,7 +40,7 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
           # Navnet under ikonet. Må være unikt på App Store (ITMS-90129), derfor
           # en secret framfor hardkodet verdi — da kan det byttes uten kodeendring.
-          DISPLAY_NAME: ${{ secrets.DISPLAY_NAME || 'Navet' }}
+          DISPLAY_NAME: ${{ secrets.DISPLAY_NAME || 'Nestify Hub' }}
 
       # xcodebuild leter etter nøkkelen i ~/.appstoreconnect/private_keys, med filnavn
       # AuthKey_<KEYID>.p8. Uten den kan ikke -allowProvisioningUpdates snakke med Apple.
@@ -92,7 +92,7 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
           # Navnet under ikonet. Må være unikt på App Store (ITMS-90129), derfor
           # en secret framfor hardkodet verdi — da kan det byttes uten kodeendring.
-          DISPLAY_NAME: ${{ secrets.DISPLAY_NAME || 'Navet' }}
+          DISPLAY_NAME: ${{ secrets.DISPLAY_NAME || 'Nestify Hub' }}
 
       - name: Bygg for simulator
         run: |

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Navet — samleapp for husholdet.
+/// Nestify Hub — samleapp for husholdet. (Internt heter prosjektet Navet.)
 ///
 /// Bevisst TOM. Dette er skallet: prosjektfil, signering og TestFlight-løype, uten
 /// moduler og uten datalag. Modulene legges inn når strukturen er bestemt.
@@ -48,7 +48,7 @@ struct Hovedvisning: View {
     private var navn: String {
         let i = Bundle.main.infoDictionary
         return (i?["CFBundleDisplayName"] as? String)
-            ?? (i?["CFBundleName"] as? String) ?? "Navet"
+            ?? (i?["CFBundleName"] as? String) ?? "Nestify Hub"
     }
 
     /// Vises i skallet så man ser HVILKET bygg som ligger på telefonen. Uten det er
