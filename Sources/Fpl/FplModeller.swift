@@ -148,3 +148,102 @@ func varighet(_ sek: TimeInterval, kort: Bool = false) -> String {
     if s >= 60 { return "\(s / 60) min" }
     return "\(s) s"
 }
+
+// MARK: - Triangulering
+
+/// Beslutningene med signalene som bærer dem.
+///
+/// `retning` er et FELT, ikke noe appen utleder av signalnavnet. Det er den viktigste
+/// enkeltopplysningen på skjermen: et «fire bein»-argument der tre ser bakover er
+/// svakere enn det høres ut.
+struct FplTriangulering: Decodable {
+    let versjon: Int
+    let generert: String
+    let runde: Int
+    let beslutninger: [Beslutning]
+
+    struct Beslutning: Decodable, Identifiable {
+        let id: String
+        let type: String, sporsmal: String, status: String
+        let alternativer: [Alternativ]
+        let signaler: [Signal]
+        let konklusjon: String?
+        let usikkerhet: String?
+        let signalsum: Signalsum?
+
+        struct Alternativ: Decodable {
+            let nokkel: String
+            let navn: String
+            let anbefalt: Bool?
+        }
+        struct Signal: Decodable, Identifiable {
+            let navn: String
+            let retning: String        // "framover" | "bakover"
+            let kilde: String?
+            let enhet: String?
+            let verdier: [String: Double]
+            let peker_mot: String?     // "A" | "B" | "uavgjort"
+            let vekt: String?          // "hoy" | "middels" | "lav"
+            let merknad: String?
+            var id: String { navn }
+            var serFramover: Bool { retning == "framover" }
+        }
+        struct Signalsum: Decodable {
+            let framover: Int?, bakover: Int?
+            let peker_mot_A: Int?, peker_mot_B: Int?
+        }
+    }
+}
+
+// MARK: - Historikk
+
+/// Beslutninger med utfall, kronologisk.
+///
+/// `premiss_holdt` (var resonnementet riktig) og `poeng_effekt` (gikk det bra) er to
+/// forskjellige ting, og begge logges. En beslutning kan holde og likevel tape poeng —
+/// derfor rangeres denne skjermen aldri på poeng.
+struct FplHistorikk: Decodable {
+    let versjon: Int
+    let generert: String
+    let runder: [Runde]
+
+    struct Runde: Decodable, Identifiable {
+        let runde: Int
+        let poeng: Int?, snitt_liga: Int?
+        let rank_total: Int?, rank_runde: Int?
+        let lagverdi: Double?, bank: Double?
+        let bytter: Int?, byttetrekk: Int?, benkepoeng: Int?
+        let beslutninger: [Beslutning]
+        var id: Int { runde }
+
+        struct Beslutning: Decodable, Identifiable {
+            let id: String
+            let dato: String, type: String, hva: String
+            let begrunnelse: String?
+            let risiko_flagget: String?
+            let utfall: Utfall?
+
+            struct Utfall: Decodable {
+                let poeng_effekt: Int?
+                let premiss_holdt: Bool?
+                let premiss_kommentar: String?
+            }
+        }
+    }
+}
+
+extension FplLager {
+    /// Henter trianguleringen. 404 er en gyldig tilstand — fila finnes ikke alltid.
+    func hentTriangulering(_ api: API) async -> FplTriangulering? {
+        try? await api.hent(Innpakket<FplTriangulering>.self, "/api/fpl/triangulering").data
+    }
+    func hentHistorikk(_ api: API) async -> FplHistorikk? {
+        try? await api.hent(Innpakket<FplHistorikk>.self, "/api/fpl/historikk").data
+    }
+}
+
+/// Backend pakker alle FPL-svar likt: deres payload under `data`, vår ferskhet i `kilde`.
+struct Innpakket<T: Decodable>: Decodable {
+    let kilde: FplSvar.Kilde
+    let data: T
+}
