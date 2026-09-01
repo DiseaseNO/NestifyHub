@@ -11,7 +11,3 @@ fastlane/Preview.html
 fastlane/test_output/
 fastlane/.env*
 
-# Byggejobben ligger IKKE i git ennå: tokenet som pusher herfra mangler `workflow`-scope,
-# og GitHub avviser hele pushen — også hvis fila bare finnes i historikken. Fila ligger i
-# repoet som `testflight.yml.mal`; kopier den til .github/workflows/ når scopet er på plass.
-.github/workflows/
