@@ -22,6 +22,28 @@ struct FplStatus: Decodable {
     let modell_status: String?
     let aapne_sporsmal: [String]?
     let aapne_risikoer: [String]?
+    /// Kildens egen ordbok: hva verdiene og tallene deres betyr, med deres ord.
+    ///
+    /// Vi oversetter ikke lenger domenet selv — kilden tar beslutningene og er den eneste
+    /// som vet hva `utfort` eller `xp_fplform` faktisk innebærer. Mangler oppslaget, viser
+    /// appen ingen forklaring framfor en vi har funnet på.
+    let ordliste: [String: Kildeord]?
+
+    /// Tåler både `{"tittel": …, "hva": …}` og bare en streng — da blir nøkkelen tittel.
+    struct Kildeord: Decodable {
+        let tittel: String?
+        let hva: String
+
+        init(from dekoder: Decoder) throws {
+            if let tekst = try? dekoder.singleValueContainer().decode(String.self) {
+                tittel = nil; hva = tekst; return
+            }
+            let c = try dekoder.container(keyedBy: Nøkler.self)
+            tittel = try c.decodeIfPresent(String.self, forKey: .tittel)
+            hva = try c.decode(String.self, forKey: .hva)
+        }
+        private enum Nøkler: String, CodingKey { case tittel, hva }
+    }
     let bytte_status: String?
     let anbefaling: Anbefaling?
     /// Odds-avledet per lag, alle 20, nøklet på klubbnavn. **Framoverskuende.**
@@ -169,7 +191,11 @@ final class FplLager {
         henter = true
         defer { henter = false }
         do {
-            svar = try await api.hent(FplSvar.self, "/api/fpl/status")
+            let nytt = try await api.hent(FplSvar.self, "/api/fpl/status")
+            // Ordboka følger dataene. Kommer den ikke, står appen uten forklaringer —
+            // det er riktigere enn at vi finner på hva kildens begreper betyr.
+            Ordliste.fraKilde = nytt.data.ordliste ?? [:]
+            svar = nytt
             feil = nil
         } catch {
             if !erAvbrutt(error) { feil = error.localizedDescription }
