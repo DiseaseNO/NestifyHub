@@ -1,0 +1,94 @@
+# XcodeGen-spesifikasjon. Selve .xcodeproj er GENERERT og ligger ikke i git —
+# `xcodegen generate` lager den lokalt og i CI. Det holder prosjektfila fri for
+# merge-konflikter og gjør at CI alltid bygger fra samme kilde.
+name: Navet
+options:
+  bundleIdPrefix: no.gustavs1
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.9"
+    # Settes fra miljøet ved `xcodegen generate` — ikke hardkodet, så andre kan bygge
+    # prosjektet med sin egen Apple-konto uten å endre fila.
+    DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
+    CODE_SIGN_STYLE: Manual
+targets:
+  Navet:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    # Ekte Info.plist generert av XcodeGen — mer forutsigbart enn INFOPLIST_KEY_*-
+    # byggeinnstillinger når verdien er en liste.
+    info:
+      path: Info.plist
+      properties:
+        # IKKE «Camera»: Apple avviser visningsnavn som kolliderer med en eksisterende
+        # app (ITMS-90129), og deres eget kamera eier det navnet. Butikknavnet er fritt,
+        # men visningsnavnet må være unikt.
+        CFBundleDisplayName: ${DISPLAY_NAME}
+        # Byggnummeret MÅ stå her. increment_build_number skriver bare til prosjektfila,
+        # og siden vi genererer Info.plist selv ble CFBundleVersion aldri satt —
+        # hver opplasting het «Build 1», som Apple avviser som duplikat.
+        CFBundleVersion: ${BUILD_NUMBER}
+        # ÉN kilde: MARKETING_VERSION over. Sto hardkodet her også, og da ville en
+        # oppdatering ett sted gitt en app som oppgir to forskjellige versjoner.
+        CFBundleShortVersionString: ${MARKETING_VERSION}
+        # Uten denne blir hvert bygg liggende som «Missing Compliance» i TestFlight og
+        # kan ikke installeres før man svarer manuelt på eksportspørsmålet i App Store
+        # Connect. Appen bruker bare HTTPS, altså standardkryptering — false er riktig.
+        ITSAppUsesNonExemptEncryption: false
+        UIUserInterfaceStyle: Dark
+        UILaunchScreen: {}
+        # ALLE FIRE må med. Appen bygges som universal (iPhone + iPad), og App Store
+        # avviser bundlen hvis iPad-multitasking ikke er dekket:
+        # «you need to include all of the ... orientations to support iPad multitasking».
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        # Ett av to steder du må endre ved fork (det andre er DEVELOPMENT_TEAM).
+        PRODUCT_BUNDLE_IDENTIFIER: no.gustavs1.hjemme
+        # Peker på Assets.xcassets/AppIcon.appiconset. Setter samtidig CFBundleIconName,
+        # som App Store krever — uten den avvises opplastingen.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Release:
+          # MÅ settes ved MANUELL signering. Standardverdien er «iOS Development», som
+          # ikke finnes lenger — vi signerer med distribusjonssertifikatet fra match.
+          # (Ved AUTOMATISK signering var denne linja tvert imot en konflikt. Forskjellen
+          # er hele poenget: automatisk gjetter, manuell krever at man er presis.)
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+        # Debug skal ALDRI signere. Automatisk signering løser opp signering for hele
+        # prosjektet når Xcode åpner det — også konfigurasjoner vi ikke arkiverer. Debug
+        # ba derfor om en «iOS App Development»-profil og lagde et nytt utviklings-
+        # sertifikat per kjøring, helt til kontoens kvote var brukt opp. Igjen.
+        # Debug brukes bare av simulator-jobben, som uansett bygger usignert.
+        Debug:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: ""
+          CODE_SIGNING_REQUIRED: "NO"
+          CODE_SIGNING_ALLOWED: "NO"
+
+schemes:
+  Navet:
+    build:
+      targets:
+        Navet: all
+    run:
+      config: Debug
+    # ARKIVERING MÅ VÆRE RELEASE. XcodeGens standardskjema arkiverte med Debug, og da
+    # velger automatisk signering utviklings-identitet og ber om en «iOS App Development»-
+    # profil — som lagde et nytt utviklingssertifikat ved hver kjøring.
+    archive:
+      config: Release
+    profile:
+      config: Release
+    analyze:
+      config: Debug

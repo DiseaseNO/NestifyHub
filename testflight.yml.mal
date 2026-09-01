@@ -1,0 +1,192 @@
+name: TestFlight
+
+# Kjører kun på main og tags. Viktig for et OFFENTLIG repo: pull requests fra fremmede
+# forks får aldri tilgang til secrets, og skal heller ikke kunne laste opp noe.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    # Laster IKKE opp ved hver push. Vi bygger mange ganger i timen under designarbeid,
+    # og Apple struper opplastinger per app. Simulator-jobben under kjører fortsatt alltid,
+    # så skjermbilder og kompilering sjekkes uansett — bare TestFlight venter til vi ber om det.
+    # Utløses av `workflow_dispatch` eller en tag (`git tag v1.2 && git push --tags`).
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Apple krever at apper bygges med et SDK som ikke er for gammelt. Runner-bildet
+      # har flere Xcode-versjoner installert; vi tar den nyeste framfor standardvalget,
+      # som ga «This app was built with the iOS 18.5 SDK».
+      - name: Velg nyeste Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          NYESTE=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "velger $NYESTE"
+          sudo xcode-select -s "$NYESTE"
+          xcodebuild -version
+
+      - name: Installer XcodeGen
+        run: brew install xcodegen
+
+      - name: Generer Xcode-prosjektet
+        run: xcodegen generate
+        env:
+          DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          # Navnet under ikonet. Må være unikt på App Store (ITMS-90129), derfor
+          # en secret framfor hardkodet verdi — da kan det byttes uten kodeendring.
+          DISPLAY_NAME: ${{ secrets.DISPLAY_NAME || 'Navet' }}
+
+      # xcodebuild leter etter nøkkelen i ~/.appstoreconnect/private_keys, med filnavn
+      # AuthKey_<KEYID>.p8. Uten den kan ikke -allowProvisioningUpdates snakke med Apple.
+      - name: Legg App Store Connect-nøkkelen der Xcode finner den
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+
+      - name: Bygg og last opp til TestFlight
+        run: bundle exec fastlane beta || fastlane beta
+        env:
+          DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT: "120"
+
+  # Kjører appen i simulator og laster opp skjermbilder som artefakter. Uten dette bygger
+  # vi blindt: koden kan kompilere feilfritt og likevel krasje ved oppstart eller se helt
+  # gal ut. Skjermbildene hentes ned og inspiseres (scripts/gh_skjerm.py i smarthus-repoet).
+  simulator:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Velg nyeste Xcode
+        run: |
+          NYESTE=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$NYESTE"
+          xcodebuild -version
+
+      - name: Installer XcodeGen
+        run: brew install xcodegen
+
+      - name: Generer Xcode-prosjektet
+        run: xcodegen generate
+        env:
+          # BEVISST uten DEVELOPMENT_TEAM: simulator-jobben skal ikke snakke med Apple.
+          # Med team satt provisjonerte Xcode automatisk og lagde et nytt
+          # utviklingssertifikat per kjøring, til kvoten var full.
+          DEVELOPMENT_TEAM: ""
+          BUILD_NUMBER: ${{ github.run_number }}
+          # Navnet under ikonet. Må være unikt på App Store (ITMS-90129), derfor
+          # en secret framfor hardkodet verdi — da kan det byttes uten kodeendring.
+          DISPLAY_NAME: ${{ secrets.DISPLAY_NAME || 'Navet' }}
+
+      - name: Bygg for simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Navet.xcodeproj \
+            -scheme Navet \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath dd \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_STYLE=Manual \
+            | tail -30
+
+      # Runneren står utenfor hjemmenettet — samme utsiktspunkt som en telefon på
+      # mobilnett. Tester fra innsiden går ut og inn igjen (hairpin) og beviser ingenting.
+      - name: Nås backend utenfra?
+        env:
+          TEST_SERVER: ${{ secrets.TEST_SERVER }}
+        run: |
+          echo "utgående IP: $(curl -s --max-time 10 https://api.ipify.org || echo ukjent)"
+          curl -s -o /dev/null --max-time 20 \
+            -w 'health: oppkobling=%{time_connect}s tls=%{time_appconnect}s status=%{http_code}\n' \
+            "https://$TEST_SERVER/api/health" || echo "NÅDDE IKKE FRAM (geoblokk?)"
+
+      - name: Start simulator og kjør appen
+        env:
+          TEST_SERVER: ${{ secrets.TEST_SERVER }}
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+        run: |
+          # Velg en tilgjengelig iPhone-simulator uten å hardkode modellnavn —
+          # runner-bildene bytter modeller mellom Xcode-versjoner.
+          UDID=$(xcrun simctl list devices available --json \
+            | python3 -c "import sys,json;d=json.load(sys.stdin)['devices'];print([x['udid'] for r in d for x in d[r] if 'iPhone' in x['name']][0])")
+          echo "simulator: $UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" dd/Build/Products/Debug-iphonesimulator/Navet.app
+          # Hopp forbi paringsskjermen hvis et test-token er lagt inn som secret.
+          # Argumentene leses bare av DEBUG-bygg (se NavetApp.swift), så dette
+          # finnes ikke i det som havner på TestFlight.
+          if [ -n "${TEST_SERVER:-}" ] && [ -n "${TEST_TOKEN:-}" ]; then
+            echo "starter med test-token (server: $TEST_SERVER)"
+            xcrun simctl launch "$UDID" no.gustavs1.camerarelay \
+              -server "$TEST_SERVER" -token "$TEST_TOKEN"
+          else
+            echo "ingen test-token satt — viser bare paringsskjermen"
+            xcrun simctl launch "$UDID" no.gustavs1.camerarelay
+          fi
+
+          # Vent til appen faktisk ER i forgrunnen. Uten dette traff første skjermbilde
+          # hjemskjermen, fordi oppstarten ikke var ferdig.
+          for i in $(seq 1 20); do
+            if xcrun simctl listapps "$UDID" >/dev/null 2>&1 && \
+               xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q camerarelay; then break; fi
+            sleep 1
+          done
+          sleep 10
+          xcrun simctl io "$UDID" screenshot skjerm-1-live.png
+
+          # Simulatoren kan ikke trykke, så vi starter appen på nytt med argumenter som
+          # tar oss rett dit vi vil se. Argumentene leses bare av DEBUG-bygg.
+          xcrun simctl terminate "$UDID" no.gustavs1.camerarelay || true
+          xcrun simctl launch "$UDID" no.gustavs1.camerarelay \
+            -server "$TEST_SERVER" -token "$TEST_TOKEN" -startfane opptak
+          sleep 8
+          xcrun simctl io "$UDID" screenshot skjerm-2-kameraliste.png
+
+          xcrun simctl terminate "$UDID" no.gustavs1.camerarelay || true
+          xcrun simctl launch "$UDID" no.gustavs1.camerarelay \
+            -server "$TEST_SERVER" -token "$TEST_TOKEN" -startfane opptak -startkamera Gate
+          sleep 10
+          xcrun simctl io "$UDID" screenshot skjerm-3-tidslinje.png
+
+          # Appens egen logg. `simctl launch --console-pty` i bakgrunnen ga en tom fil;
+          # `log show` etterpå er både enklere og mer komplett.
+          xcrun simctl spawn "$UDID" log show --style compact --last 3m \
+            --predicate 'processImagePath CONTAINS "Navet"' > app-konsoll.txt 2>&1 || true
+          echo "--- våre egne logglinjer ---"
+          grep -a "CR-SEED\|CR-API" app-konsoll.txt || echo "(ingen CR-linjer funnet)"
+          echo "--- siste linjer fra appen ---"
+          tail -25 app-konsoll.txt || true
+
+          # Eventuelle krasjrapporter
+          cp ~/Library/Logs/DiagnosticReports/Navet* . 2>/dev/null || true
+
+      - name: Last opp skjermbilder
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skjermbilder
+          path: |
+            *.png
+            app-konsoll.txt
+          retention-days: 7

@@ -1,0 +1,82 @@
+# Bygger og laster opp til TestFlight.
+#
+# Signering: automatisk, med App Store Connect API-nøkkelen alene. Siden Xcode 13 kan
+# `-allowProvisioningUpdates` opprette og hente provisioning-profiler OG bruke Apples
+# *cloud-managed* distribusjonssertifikat — den private nøkkelen blir hos Apple. Derfor
+# trengs verken match, sertifikat-repo eller passfrase, og vi bruker ikke opp de 2-3
+# manuelle distribusjonssertifikatene kontoen har.
+#
+# Ingen hemmeligheter i denne fila: alt kommer fra GitHub-secrets via miljøet.
+default_platform(:ios)
+
+APP_ID = "no.gustavs1.hjemme"
+
+platform :ios do
+  desc "Bygg og last opp til TestFlight"
+  lane :beta do
+    # Midlertidig keychain på CI. Uten den har ikke runneren noe sted å legge
+    # signeringsmateriellet, og feilen som kommer er lite opplysende.
+    setup_ci if ENV["CI"]
+
+    # Workflowen har lagt .p8-fila her — xcodebuild leter i ~/.appstoreconnect/private_keys.
+    key_id = ENV.fetch("ASC_KEY_ID")
+    key_path = File.expand_path("~/.appstoreconnect/private_keys/AuthKey_#{key_id}.p8")
+
+    api_key = app_store_connect_api_key(
+      key_id: key_id,
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_filepath: key_path,
+      in_house: false
+    )
+
+    # Signering via match: henter det EKSISTERENDE distribusjonssertifikatet fra
+    # sertifikat-repoet og lager (første gang) en appstore-profil for vår bundle-ID.
+    #
+    # Automatisk signering ble prøvd i tre varianter og ba hver gang om en
+    # «iOS App Development»-profil, som lagde et nytt utviklingssertifikat per kjøring
+    # til kontoens kvote var brukt opp. match gjenbruker ett sertifikat i stedet.
+    match(
+      type: "appstore",
+      app_identifier: APP_ID,
+      api_key: api_key,
+      readonly: false,          # første kjøring må få lage profilen for denne appen
+      git_url: ENV.fetch("MATCH_GIT_URL"),
+      git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTHORIZATION"]
+    )
+
+    # (Byggnummeret settes av XcodeGen fra $BUILD_NUMBER — se project.yml.
+    # increment_build_number virker ikke når Info.plist genereres av XcodeGen.)
+
+    # Manuell signering: match har allerede lagt riktig sertifikat og profil på plass.
+    # -allowProvisioningUpdates er BEVISST borte — det er den som ba Apple om nye
+    # sertifikater. Profilnavnet kommer fra match.
+    profil = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING][APP_ID]
+    signering = "CODE_SIGN_STYLE=Manual " \
+                "CODE_SIGN_IDENTITY='Apple Distribution' " \
+                "PROVISIONING_PROFILE_SPECIFIER='#{profil}'"
+
+    build_app(
+      scheme: "Navet",
+      # Release EKSPLISITT. Uten dette arkiverte Xcode med utviklings-signering og bad om
+      # en «iOS App Development»-profil — og laget et NYTT utviklingssertifikat for hver
+      # kjøring, til kontoens sertifikatkvote var brukt opp.
+      configuration: "Release",
+      export_method: "app-store",
+      project: "Navet.xcodeproj",
+      xcargs: signering,
+      # IKKE sett export_xcargs med de samme argumentene: gym legger selv
+      # -authenticationKey* på eksport-steget når api_key er satt, og xcodebuild
+      # avviser at flagget oppgis to ganger.
+      export_options: {
+        signingStyle: "manual",
+        provisioningProfiles: { APP_ID => profil }
+      }
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false   # interne testere trenger ingen Beta App Review
+    )
+  end
+end
