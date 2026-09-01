@@ -2,60 +2,80 @@ import SwiftUI
 
 /// Nestify Hub — samleapp for husholdet.
 ///
-/// Bevisst TOM. Dette er skallet: prosjektfil, signering og TestFlight-løype, uten
-/// moduler og uten datalag. Modulene legges inn når strukturen er bestemt.
-///
-/// Kameraene bor i sin egen app (CameraRelay) og skal ikke inn her.
+/// Modulene kommer én for én. Skallet er bevisst tynt: det eier bare innloggingen og
+/// navigasjonen, og hver modul står for seg selv.
 @main
 struct NestifyHubApp: App {
+    @State private var api: API
+
+    init() {
+        #if DEBUG
+        seedFraOppstartsargumenter()   // må skje FØR API() leser Keychain
+        #endif
+        _api = State(initialValue: API())
+    }
+
     var body: some Scene {
         WindowGroup {
-            Hovedvisning()
-                .preferredColorScheme(.dark)
-                .tint(Farge.aksent)
-                // Appen er på norsk; uten dette arver den enhetens locale og viser
-                // klokkeslett som «7:36 PM».
-                .environment(\.locale, Locale(identifier: "nb_NO"))
+            Group {
+                if api.erKlar { Hovedvisning(api: api) } else { Paring(api: api) }
+            }
+            .preferredColorScheme(.dark)
+            .tint(Farge.aksent)
+            // Appen er på norsk; uten dette arver den enhetens locale og viser
+            // klokkeslett som «7:36 PM».
+            .environment(\.locale, Locale(identifier: "nb_NO"))
         }
     }
 }
 
+#if DEBUG
+/// Testvei for simulator i CI: oppstartsargumentene `-server <vert> -token <tok>` legges
+/// rett i Keychain, så skjermbilde-testene kommer forbi paringen.
+///
+/// Kompileres KUN inn i DEBUG. TestFlight-byggene er Release og inneholder ikke denne
+/// koden — det finnes altså ingen omvei rundt paringen i det du installerer.
+private func seedFraOppstartsargumenter() {
+    let d = UserDefaults.standard
+    let vert = d.string(forKey: "server") ?? ""
+    let token = d.string(forKey: "token") ?? ""
+    guard !vert.isEmpty, !token.isEmpty else { return }
+    Nøkkelring.skriv(vert, for: "vert")
+    Nøkkelring.skriv(token, for: "token")
+}
+#endif
+
+/// Modulvelgeren. Foreløpig tom — modulene legges inn her etter hvert.
 struct Hovedvisning: View {
+    let api: API
+
     var body: some View {
-        ZStack {
-            Farge.flate.ignoresSafeArea()
-            VStack(spacing: 10) {
-                Image(systemName: "house")
-                    .font(.system(size: 44, weight: .light))
-                    .foregroundStyle(Farge.aksent)
-                Text(navn)
-                    .font(.title2.weight(.medium))
-                    .foregroundStyle(Farge.tekst)
-                Text("Skallet står klart — ingen moduler ennå.")
-                    .font(.footnote)
-                    .foregroundStyle(Farge.dempet)
-                Text(versjon)
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(Farge.svak)
-                    .padding(.top, 6)
+        NavigationStack {
+            ZStack {
+                Farge.flate.ignoresSafeArea()
+                VStack(spacing: 10) {
+                    Image(systemName: "square.grid.2x2")
+                        .font(.system(size: 40, weight: .light))
+                        .foregroundStyle(Farge.aksent)
+                    Text("Tilkoblet")
+                        .font(.title3.weight(.medium))
+                        .foregroundStyle(Farge.tekst)
+                    Text("Ingen moduler ennå.")
+                        .font(.footnote)
+                        .foregroundStyle(Farge.dempet)
+                }
+            }
+            .navigationTitle("Nestify Hub")
+            .toolbarBackground(Farge.flate, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button(role: .destructive) { api.glemEnhet() } label: {
+                            Label("Glem denne enheten", systemImage: "xmark.circle")
+                        }
+                    } label: { Image(systemName: "ellipsis.circle") }
+                }
             }
         }
-    }
-
-    /// Navnet leses fra bundelen, ikke hardkodet. `CFBundleDisplayName` settes av
-    /// XcodeGen fra `$DISPLAY_NAME`, som er en GitHub-secret nettopp så navnet kan
-    /// byttes uten kodeendring — da må teksten i appen følge med av seg selv.
-    private var navn: String {
-        let i = Bundle.main.infoDictionary
-        return (i?["CFBundleDisplayName"] as? String)
-            ?? (i?["CFBundleName"] as? String) ?? "Nestify Hub"
-    }
-
-    /// Vises i skallet så man ser HVILKET bygg som ligger på telefonen. Uten det er
-    /// «er den nye versjonen installert?» et gjettespørsmål.
-    private var versjon: String {
-        let i = Bundle.main.infoDictionary
-        return "versjon \(i?["CFBundleShortVersionString"] as? String ?? "?") "
-            + "(bygg \(i?["CFBundleVersion"] as? String ?? "?"))"
     }
 }
