@@ -173,10 +173,6 @@ struct FplNaa: View {
                     Text(handling(a))
                         .font(.callout.weight(.medium)).foregroundStyle(Farge.tekst)
                         .fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 14) {
-                        if let k = a.kaptein { rolle("Kaptein", k.navn, k.klubb) }
-                        if let v = a.vise { rolle("Vise", v.navn, v.klubb) }
-                    }
                     let antallBytter = a.bytter?.count ?? 0
                     HStack(spacing: 6) {
                         Image(systemName: antallBytter > 0 ? "arrow.left.arrow.right" : "pause.circle")
@@ -213,13 +209,6 @@ struct FplNaa: View {
         }
     }
 
-    private func rolle(_ tittel: String, _ navn: String, _ klubb: String?) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(tittel).font(.system(size: 9)).foregroundStyle(Farge.svak)
-            Text(navn).font(.caption.weight(.medium)).foregroundStyle(Farge.tekst)
-            if let k = klubb { Text(k).font(.system(size: 9)).foregroundStyle(Farge.svak) }
-        }
-    }
 
     /// Åpne spørsmål er vaktas arbeidsnotater — seks punkter på opptil 4 400 tegn. De
     /// hører til anbefalingen, men de kan ikke stå på hovedskjermen: da er det de man

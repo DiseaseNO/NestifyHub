@@ -107,8 +107,12 @@ struct FplBeslutning: View {
         let støtte = max(forA, forB)
 
         if b.status == "forkastet" {
-            return valgt.map { "Forkastet — \($0) ble vurdert, men ikke valgt." }
-                ?? "Vurdert og forkastet."
+            // `anbefalt` markerer det som ble VALGT, også i en forkastet beslutning: da er
+            // det den man beholdt. Å skrive at den ble «vurdert, men ikke valgt» sa det
+            // stikk motsatte av hva som skjedde.
+            guard let valgt else { return "Vurdert og forkastet." }
+            return b.type == "bytte" ? "Forkastet — \(valgt) blir stående."
+                                     : "Forkastet. Valget ble \(valgt)."
         }
         guard let valgt else { return "Ingen konklusjon ennå." }
         let verb = b.status == "utfort" ? "Valgt" : "Anbefalt"
