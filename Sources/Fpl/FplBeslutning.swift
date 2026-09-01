@@ -20,7 +20,10 @@ struct FplBeslutning: View {
     @State private var tri: FplTriangulering?
     @State private var lastet = false
 
-    private let lys = Diagramfarge.serie1.opacity(0.55)
+    // To nyanser av samme hue var ikke nok til å skille A fra B på mørk bakgrunn.
+    // Løsningen er IKKE en farge til — den ville konkurrert med statusfargene om
+    // betydning. Formen bærer identiteten (A sirkel, B firkant), nyansen forsterker.
+    private let lys = Diagramfarge.serie1.opacity(0.5)
     private let mørk = Diagramfarge.serie1
 
     var body: some View {
@@ -99,7 +102,7 @@ struct FplBeslutning: View {
                 Text(navnA).font(.caption2).foregroundStyle(Farge.dempet)
             }
             HStack(spacing: 5) {
-                Circle().fill(mørk).frame(width: 9, height: 9)
+                Rectangle().fill(mørk).frame(width: 9, height: 9)
                 Text(navnB).font(.caption2).foregroundStyle(Farge.dempet)
             }
         }
@@ -128,6 +131,11 @@ struct FplBeslutning: View {
                         Text(s.navn).font(.caption2).foregroundStyle(Farge.tekst)
                         Text(s.serFramover ? "framover" : "bakover")
                             .font(.system(size: 9)).foregroundStyle(Farge.svak)
+                        // Lengst til høyre = størst tall, som for en plassering betyr
+                        // dårligst. Uten dette leses raden stikk motsatt av hva den sier.
+                        if s.enhet == "plass" {
+                            Text("lavest er best").font(.system(size: 9)).foregroundStyle(Farge.svak)
+                        }
                         if let v = s.vekt, v != "middels" {
                             Text("vekt \(v == "hoy" ? "høy" : v)")
                                 .font(.system(size: 9)).foregroundStyle(Farge.svak)
@@ -149,11 +157,11 @@ struct FplBeslutning: View {
                             .lineStyle(.init(lineWidth: 2))
                         if va != nil {
                             PointMark(x: .value("A", na), y: .value("Signal", s.navn))
-                                .foregroundStyle(lys).symbolSize(90)
+                                .foregroundStyle(lys).symbol(.circle).symbolSize(90)
                         }
                         if vb != nil {
                             PointMark(x: .value("B", nb), y: .value("Signal", s.navn))
-                                .foregroundStyle(mørk).symbolSize(90)
+                                .foregroundStyle(mørk).symbol(.square).symbolSize(90)
                         }
                     }
                     .chartXScale(domain: -0.08...1.08)

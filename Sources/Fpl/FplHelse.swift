@@ -133,10 +133,18 @@ struct FplHelse: View {
         boks("Modellstatus") {
             Label("Underkjent — bærer ingen konklusjon", systemImage: "exclamationmark.triangle.fill")
                 .font(.caption.weight(.medium)).foregroundStyle(Diagramfarge.varsel)
-            Text(d.modell_status ?? "ingen status")
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(Farge.dempet)
-                .fixedSize(horizontal: false, vertical: true)
+            // Statusen er vaktas arbeidsnotat, ofte et par skjermlengder. Dommen over
+            // står alltid; notatet ligger ett trykk unna for den som vil ha begrunnelsen.
+            DisclosureGroup("Vaktas notat") {
+                Text(d.modell_status ?? "ingen status")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Farge.dempet)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 4)
+            }
+            .font(.caption2)
+            .tint(Farge.svak)
+            .foregroundStyle(Farge.dempet)
         }
     }
 

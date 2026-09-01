@@ -207,8 +207,15 @@ struct FplNaa: View {
     /// sammendrag — hele teksten står under, uforkortet.
     private func overskrift(_ tekst: String) -> String {
         let ren = tekst.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let punktum = ren.firstIndex(where: { $0 == "." || $0 == ":" }), ren.distance(from: ren.startIndex, to: punktum) < 90 {
-            return String(ren[..<punktum])
+        // Flere notater åpner med en datostempel-stump («NY 28/8:»). Kutter vi på første
+        // skilletegn blir overskriften den stumpen, som ikke sier noe. Vi går videre til
+        // det første bruddet som faktisk gir en setning.
+        var fra = ren.startIndex
+        while let brudd = ren[fra...].firstIndex(where: { $0 == "." || $0 == ":" }) {
+            let stykke = ren[ren.startIndex..<brudd].trimmingCharacters(in: .whitespaces)
+            if stykke.count >= 25 { return stykke }
+            fra = ren.index(after: brudd)
+            if ren.distance(from: ren.startIndex, to: fra) > 90 { break }
         }
         return ren.count > 90 ? String(ren.prefix(90)) + "…" : ren
     }
