@@ -61,8 +61,11 @@ struct FplNaa: View {
         .sheet(item: $visSporsmal) { sp in sporsmaalsark(sp.punkter) }
     }
 
-    /// Anbefalingen som én setning, satt sammen av `bytter`, `endrer_oppstilling`,
-    /// `kaptein` og `chip`. Ingen tolkning av fritekst — bare feltene, sagt på norsk.
+    /// Nødløsning til kilden sender `sammendrag`: anbefalingen som én setning, satt
+    /// sammen av `bytter`, `endrer_oppstilling`, `kaptein` og `chip`.
+    ///
+    /// Den er mekanisk og sier bare det feltene sier — men den er vår, og teksten skal
+    /// være kildens. Se `docs/bestilling-fra-appen.md` §2 i FPL-repoet.
     private func handling(_ a: FplStatus.Anbefaling) -> String {
         var deler: [String] = []
         let bytter = a.bytter ?? []
@@ -172,7 +175,7 @@ struct FplNaa: View {
                 if let a {
                     // Setningen først. De strukturerte feltene ER forståelige; det er
                     // fritekstet som ikke er det, og da skal fritekstet ikke stå øverst.
-                    Text(handling(a))
+                    Text(a.sammendrag ?? handling(a))
                         .font(.callout.weight(.medium)).foregroundStyle(Farge.tekst)
                         .fixedSize(horizontal: false, vertical: true)
                     let antallBytter = a.bytter?.count ?? 0

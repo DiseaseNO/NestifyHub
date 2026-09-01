@@ -62,6 +62,9 @@ struct FplStatus: Decodable {
         let vise: Navngitt?
         let endrer_oppstilling: Bool?
         let notat: String?
+        /// Kildens egen korte formulering av hva som skal gjøres. Vinner over setningen
+        /// appen setter sammen selv — den som skrev anbefalingen vet hvorfor.
+        let sammendrag: String?
 
         struct Navngitt: Decodable { let id: Int?; let navn: String; let klubb: String? }
         struct Bytte: Decodable { let inn: Navngitt?; let ut: Navngitt? }
@@ -243,6 +246,8 @@ struct FplTriangulering: Decodable {
         let type: String, sporsmal: String, status: String
         let alternativer: [Alternativ]
         let signaler: [Signal]
+        /// Kildens egen ettsetnings utfall. Vinner over appens sammensatte dom.
+        let kortsvar: String?
         let konklusjon: String?
         let usikkerhet: String?
         let signalsum: Signalsum?

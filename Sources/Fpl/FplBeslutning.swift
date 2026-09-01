@@ -74,7 +74,7 @@ struct FplBeslutning: View {
             // Svaret først, i én setning. Diagrammet er begrunnelsen, og begrunnelsen
             // skal ikke stå foran svaret — da leser man seg gjennom fire signalrader før
             // man vet hva som ble valgt.
-            Text(dommen(b)).font(.callout.weight(.medium)).foregroundStyle(Farge.tekst)
+            Text(b.kortsvar ?? dommen(b)).font(.callout.weight(.medium)).foregroundStyle(Farge.tekst)
                 .fixedSize(horizontal: false, vertical: true)
 
             DisclosureGroup("Vis signalene (\(b.signaler.count))") {
@@ -100,8 +100,9 @@ struct FplBeslutning: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    /// Beslutningen som én setning: hva ble valgt, og hvor mange signaler støttet det.
-    /// Alt sammen fra strukturerte felter — ingen tolkning av fritekst.
+    /// Nødløsning til kilden sender `kortsvar`: hva ble valgt, og hvor mange signaler
+    /// støttet det. Bare strukturerte felter, men formuleringen er vår — og den skal
+    /// være kildens. Se `docs/bestilling-fra-appen.md` §2 i FPL-repoet.
     private func dommen(_ b: FplTriangulering.Beslutning) -> String {
         let valgt = b.alternativer.first { $0.anbefalt == true }?.navn
         let sum = b.signalsum
