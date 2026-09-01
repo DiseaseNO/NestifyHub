@@ -128,10 +128,14 @@ jobs:
           fi
           tail -3 bygg.log
 
-      # Uten dette bygger vi blindt: koden kan kompilere feilfritt og likevel krasje
-      # ved oppstart. Skallet er tomt, så vi trenger bare ETT skjermbilde — men det
-      # beviser at appen faktisk starter.
-      - name: Start simulator og kjør appen
+      # Uten dette bygger vi blindt: koden kan kompilere feilfritt og likevel krasje ved
+      # oppstart eller se helt gal ut. Simulatoren pares med en egen enhet på hjemmeserveren
+      # (rolle `ci`: kan LESE fpl-data og legge fra seg skjermbilder, ingenting mer), og
+      # startes én gang per skjerm med `-skjerm` — enklere og mer robust enn å simulere trykk.
+      - name: Kjør appen i simulator
+        env:
+          CI_VERT: ${{ secrets.CI_VERT }}
+          CI_TOKEN: ${{ secrets.CI_TOKEN }}
         run: |
           set -o pipefail
           # Velg en tilgjengelig iPhone uten å hardkode modellnavn — runner-bildene
@@ -142,29 +146,55 @@ jobs:
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" dd/Build/Products/Debug-iphonesimulator/NestifyHub.app
-          xcrun simctl launch "$UDID" no.gustavs1.hjemme
 
-          # Vent til appen ER i forgrunnen. Uten dette traff skjermbildet hjemskjermen,
-          # fordi oppstarten ikke var ferdig.
-          for i in $(seq 1 20); do
-            xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q hjemme && break
-            sleep 1
-          done
-          sleep 6
-          xcrun simctl io "$UDID" screenshot skjerm-1-skall.png
+          # $1 = filnavn, resten = oppstartsargumenter til appen
+          knips() {
+            navn="$1"; shift
+            xcrun simctl terminate "$UDID" no.gustavs1.hjemme 2>/dev/null || true
+            xcrun simctl launch "$UDID" no.gustavs1.hjemme "$@" >/dev/null
+            # Vent til appen ER i forgrunnen. Uten dette traff skjermbildet hjemskjermen,
+            # fordi oppstarten ikke var ferdig.
+            for i in $(seq 1 20); do
+              xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q hjemme && break
+              sleep 1
+            done
+            sleep 6
+            xcrun simctl io "$UDID" screenshot "$navn.png"
+          }
 
-          xcrun simctl spawn "$UDID" log show --style compact --last 3m \
+          knips 1-paring
+          if [ -n "$CI_TOKEN" ]; then
+            knips 2-moduler   -server "$CI_VERT" -token "$CI_TOKEN"
+            for skjerm in naa beslutning historikk helse; do
+              knips "3-$skjerm" -server "$CI_VERT" -token "$CI_TOKEN" -skjerm "$skjerm"
+            done
+          else
+            echo "::warning::CI_TOKEN mangler — bare paringsskjermen er knipset"
+          fi
+
+          xcrun simctl spawn "$UDID" log show --style compact --last 5m \
             --predicate 'processImagePath CONTAINS "NestifyHub"' > app-konsoll.txt 2>&1 || true
           echo "--- siste linjer fra appen ---"
           tail -25 app-konsoll.txt || true
-          cp ~/Library/Logs/DiagnosticReports/NestifyHub* . 2>/dev/null || true
 
-      - name: Last opp skjermbilder
+      # Skjermbildene viser EKTE tall fra huset. Som byggeartefakter ville de ligget åpent
+      # på et offentlig repo, så de sendes til hjemmeserveren i stedet og forlater aldri
+      # huset. Se `backend/src/ci.ts` i smarthus-repoet.
+      - name: Send skjermbildene hjem
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: skjermbilder
-          path: |
-            *.png
-            app-konsoll.txt
-          retention-days: 7
+        env:
+          CI_VERT: ${{ secrets.CI_VERT }}
+          CI_TOKEN: ${{ secrets.CI_TOKEN }}
+        run: |
+          [ -n "$CI_TOKEN" ] || { echo "ingen CI_TOKEN — hopper over"; exit 0; }
+          send() {
+            curl -sS --fail-with-body -X POST \
+              -H "Authorization: Bearer $CI_TOKEN" \
+              -H "X-CI-Kjoring: ${{ github.run_number }}" \
+              -H "Content-Type: $2" --data-binary "@$1" \
+              "https://$CI_VERT/api/kamera/ci-skjerm/$1" \
+              -o /dev/null -w "  $1 -> %{http_code}\n" || echo "  $1 FEILET"
+          }
+          for f in *.png; do [ -e "$f" ] && send "$f" image/png; done
+          [ -e app-konsoll.txt ] && send app-konsoll.txt text/plain
+          true

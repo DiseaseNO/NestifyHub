@@ -18,7 +18,15 @@ struct NestifyHubApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if api.erKlar { Hovedvisning(api: api) } else { Paring(api: api) }
+                if !api.erKlar {
+                    Paring(api: api)
+                } else if let start = Testskjerm.valgt {
+                    // CI hopper rett inn i én skjerm; ellers ville skjermbildene krevd
+                    // simulerte trykk, som er skjørt og trenger vedlikehold.
+                    FplModul(api: api, start: start)
+                } else {
+                    Hovedvisning(api: api)
+                }
             }
             .preferredColorScheme(.dark)
             .tint(Farge.aksent)
@@ -44,6 +52,24 @@ private func seedFraOppstartsargumenter() {
     Nøkkelring.skriv(token, for: "token")
 }
 #endif
+
+/// Hvilken skjerm CI skal åpne rett i, gitt som `-skjerm naa|beslutning|historikk|helse`.
+/// Utenfor DEBUG er `valgt` alltid `nil`, så koden finnes ikke i det som installeres.
+enum Testskjerm {
+    static var valgt: Int? {
+        #if DEBUG
+        switch UserDefaults.standard.string(forKey: "skjerm") {
+        case "naa": 0
+        case "beslutning": 1
+        case "historikk": 2
+        case "helse": 3
+        default: nil
+        }
+        #else
+        nil
+        #endif
+    }
+}
 
 /// Modulvelgeren.
 struct Hovedvisning: View {
