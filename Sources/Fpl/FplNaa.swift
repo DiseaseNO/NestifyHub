@@ -66,7 +66,7 @@ struct FplNaa: View {
                 // Laget kan ikke endres nå. Ingen nedtelling, ingen handlinger.
                 Label("Runden pågår — laget er låst", systemImage: "lock.fill")
                     .font(.title3.weight(.medium))
-                    .foregroundStyle(Data.varsel)
+                    .foregroundStyle(Diagramfarge.varsel)
                 if let sn = s.data.runde.snitt_liga, sn > 0 {
                     Text("Ligasnitt \(sn)").font(.subheadline).foregroundStyle(Farge.dempet)
                 }
@@ -75,7 +75,7 @@ struct FplNaa: View {
                 Text(nedtellingstekst(t))
                     // ≥48 pt: dette er tallet man åpner appen for.
                     .font(.system(size: 52, weight: .light).monospacedDigit())
-                    .foregroundStyle(t < 0 ? Farge.svak : (haster ? Data.kritisk : Farge.tekst))
+                    .foregroundStyle(t < 0 ? Farge.svak : (haster ? Diagramfarge.kritisk : Farge.tekst))
                     .contentTransition(.numericText())
                 Text(t < 0 ? "siden frist" : "til frist")
                     .font(.subheadline).foregroundStyle(Farge.dempet)
@@ -104,11 +104,11 @@ struct FplNaa: View {
             Text("Tallene er \(varighet(alder)) gamle")
                 .font(.caption)
             if let f = s.kilde.feil {
-                Text("· henting feilet").font(.caption).foregroundStyle(Data.kritisk)
+                Text("· henting feilet").font(.caption).foregroundStyle(Diagramfarge.kritisk)
                     .help(f)
             }
         }
-        .foregroundStyle(gammelt ? Data.varsel : Farge.svak)
+        .foregroundStyle(gammelt ? Diagramfarge.varsel : Farge.svak)
     }
 
     // MARK: anbefaling
@@ -123,7 +123,7 @@ struct FplNaa: View {
             if let sp = s.data.aapne_sporsmal, !sp.isEmpty {
                 Divider().overlay(Farge.strek)
                 Text("Åpne spørsmål som bærer den (\(sp.count))")
-                    .font(.caption2.weight(.medium)).foregroundStyle(Data.varsel)
+                    .font(.caption2.weight(.medium)).foregroundStyle(Diagramfarge.varsel)
                 ForEach(sp.prefix(3), id: \.self) { q in
                     Text("• " + q).font(.caption2).foregroundStyle(Farge.dempet)
                         .fixedSize(horizontal: false, vertical: true)
@@ -191,7 +191,7 @@ struct FplNaa: View {
     private func spillerkort(_ s: FplStatus.Spiller) -> some View {
         VStack(spacing: 2) {
             HStack(spacing: 2) {
-                if s.kaptein { Image(systemName: "c.circle.fill").font(.system(size: 9)).foregroundStyle(Data.serie1) }
+                if s.kaptein { Image(systemName: "c.circle.fill").font(.system(size: 9)).foregroundStyle(Diagramfarge.serie1) }
                 if s.vise { Image(systemName: "v.circle").font(.system(size: 9)).foregroundStyle(Farge.dempet) }
                 Text(s.navn).font(.system(size: 11, weight: .medium)).lineLimit(1)
             }
@@ -204,7 +204,7 @@ struct FplNaa: View {
             }
             // spilleprosent er null når spilleren er helt frisk — ikke tolk som 0.
             if let p = s.spilleprosent {
-                Text("\(p) %").font(.system(size: 9)).foregroundStyle(Data.varsel)
+                Text("\(p) %").font(.system(size: 9)).foregroundStyle(Diagramfarge.varsel)
             }
         }
         .frame(maxWidth: .infinity)
@@ -215,9 +215,9 @@ struct FplNaa: View {
 
     private func vanskefarge(_ v: Int) -> Color {
         switch v {
-        case ...2: Data.god
+        case ...2: Diagramfarge.god
         case 3:    Farge.dempet
-        default:   Data.alvorlig
+        default:   Diagramfarge.alvorlig
         }
     }
 

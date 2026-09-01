@@ -29,7 +29,10 @@ extension Color {
     }
 }
 
-/// Datavisualiseringspaletten fra FPL-speccen. **Egen fra husets farger med vilje** —
+/// Datavisualiseringspaletten fra FPL-speccen.
+///
+/// Het `Data` først. Det skygget for `Foundation.Data` og knekte Keychain-koden — et
+/// navn som er så vanlig i standardbiblioteket, skal man ikke ta. **Egen fra husets farger med vilje** —
 /// slots har fast rekkefølge og skal aldri syklet, og statusfargene er reservert.
 ///
 /// Verdiene er mørk modus, som er VALGT og ikke en automatisk invertering.
@@ -37,7 +40,7 @@ extension Color {
 /// ⚠️ Ikke validert med skillets validator — den var ikke tilgjengelig. Verdiene kommer
 /// fra den dokumenterte, forhåndsvaliderte paletten. Byttes de til egne merkevarefarger,
 /// må de valideres på nytt.
-enum Data {
+enum Diagramfarge {
     /// Slot 1 — ditt lag / alternativ A.
     static let serie1 = Color(hex: 0x3987E5)
     /// Slot 2 — ligasnitt / alternativ B.

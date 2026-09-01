@@ -45,11 +45,11 @@ struct FplHelse: View {
         boks("Datakilder") {
             ForEach(d.kilder) { k in
                 HStack(spacing: 8) {
-                    Image(systemName: Data.statusIkon(k.status))
-                        .font(.caption).foregroundStyle(Data.status(k.status))
+                    Image(systemName: Diagramfarge.statusIkon(k.status))
+                        .font(.caption).foregroundStyle(Diagramfarge.status(k.status))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(k.navn).font(.caption.weight(.medium)).foregroundStyle(Farge.tekst)
-                        Text(k.status).font(.system(size: 10)).foregroundStyle(Data.status(k.status))
+                        Text(k.status).font(.system(size: 10)).foregroundStyle(Diagramfarge.status(k.status))
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 1) {
@@ -82,11 +82,11 @@ struct FplHelse: View {
                     }
                 } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: Data.statusIkon(s.status))
-                            .font(.caption).foregroundStyle(Data.status(s.status))
+                        Image(systemName: Diagramfarge.statusIkon(s.status))
+                            .font(.caption).foregroundStyle(Diagramfarge.status(s.status))
                         Text(s.navn).font(.caption).foregroundStyle(Farge.tekst)
                         Spacer()
-                        Text(s.status).font(.system(size: 10)).foregroundStyle(Data.status(s.status))
+                        Text(s.status).font(.system(size: 10)).foregroundStyle(Diagramfarge.status(s.status))
                     }
                 }
                 .tint(Farge.dempet)
@@ -113,7 +113,7 @@ struct FplHelse: View {
                     ZStack(alignment: .leading) {
                         Capsule().fill(Farge.kort2)
                         Capsule()
-                            .fill(andel < 0.2 ? Data.kritisk : (andel < 0.4 ? Data.varsel : Data.god))
+                            .fill(andel < 0.2 ? Diagramfarge.kritisk : (andel < 0.4 ? Diagramfarge.varsel : Diagramfarge.god))
                             .frame(width: max(2, geo.size.width * andel))
                     }
                 }
@@ -129,7 +129,7 @@ struct FplHelse: View {
     private func modell(_ d: FplStatus) -> some View {
         boks("Modellstatus") {
             Label("Underkjent — bærer ingen konklusjon", systemImage: "exclamationmark.triangle.fill")
-                .font(.caption.weight(.medium)).foregroundStyle(Data.varsel)
+                .font(.caption.weight(.medium)).foregroundStyle(Diagramfarge.varsel)
             Text(d.modell_status ?? "ingen status")
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(Farge.dempet)
