@@ -11,6 +11,7 @@ import SwiftUI
 struct FplHistorikk_Visning: View {
     let api: API
     @State private var hist: FplHistorikk?
+    @State private var stat: FplStatistikk?
     @State private var lastet = false
 
     var body: some View {
@@ -23,6 +24,7 @@ struct FplHistorikk_Visning: View {
                         .fixedSize(horizontal: false, vertical: true)
                     // Nyeste runde øverst, men beslutningene INNI hver runde står i
                     // rekkefølgen de ble tatt.
+                    if let st = stat { regnskap(st) }
                     ForEach(h.runder.sorted { $0.runde > $1.runde }) { r in runde(r) }
                     Ordlisteknapp()
                 } else if lastet {
@@ -39,8 +41,97 @@ struct FplHistorikk_Visning: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Farge.flate, for: .navigationBar)
         .task {
-            hist = await FplLager(api: api).hentHistorikk(api)
+            let lager = FplLager(api: api)
+            hist = await lager.hentHistorikk(api)
+            stat = await lager.hentStatistikk(api)
             lastet = true
+        }
+    }
+
+    /// Regnskapet over egne beslutninger.
+    ///
+    /// Premisstellingen vises alltid — den er en opptelling, ikke en rate, og fire tall
+    /// som summerer til antall beslutninger kan ikke lyve om sitt eget grunnlag.
+    ///
+    /// **Treffratene per signal er skjult til `n` er stor nok.** Med to spilte runder er
+    /// «50 % treff» ett treff av to, og en sortert liste med prosenter ser like
+    /// autoritativ ut enten den hviler på 2 eller 200 observasjoner. Kilden ber selv om
+    /// dette, og advarselen deres står over.
+    private func regnskap(_ st: FplStatistikk) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("REGNSKAP").font(.caption2.weight(.semibold)).foregroundStyle(Farge.dempet)
+
+            if let p = st.premiss {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 14) {
+                        telling("holdt", p.holdt, Diagramfarge.god)
+                        telling("brast", p.brast, Diagramfarge.alvorlig)
+                        Spacer()
+                    }
+                    // De to interessante rutene i krysstabellen: der resonnement og
+                    // utfall spriker. Det er hele grunnen til at begge logges.
+                    if let ht = p.holdt_men_tapte, ht > 0 {
+                        Text("\(ht) holdt, men kostet poeng").font(.caption2).foregroundStyle(Diagramfarge.varsel)
+                    }
+                    if let bv = p.brast_men_vant, bv > 0 {
+                        Text("\(bv) brast, men gikk bra likevel").font(.caption2).foregroundStyle(Diagramfarge.varsel)
+                    }
+                }
+            }
+
+            if let b = st.bytter, let n = b.netto {
+                Text("Bytter: \(b.antall ?? 0) · netto \(n > 0 ? "+" : "")\(n) poeng")
+                    .font(.caption2).foregroundStyle(Farge.dempet)
+            }
+            if let k = st.kaptein, let n = k.n, n > 0 {
+                Text("Kaptein: traff \(k.traff ?? 0) av \(n) · \(k.tapt_totalt ?? 0) poeng igjen på bordet")
+                    .font(.caption2).foregroundStyle(Farge.dempet)
+            }
+
+            signalregnskap(st)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Farge.kort)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func signalregnskap(_ st: FplStatistikk) -> some View {
+        let sig = st.signaler ?? [:]
+        let maksN = sig.values.compactMap(\.n).max() ?? 0
+        Divider().overlay(Farge.strek)
+        if maksN >= FplStatistikk.nokGrunnlag {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(sig.keys.sorted(), id: \.self) { navn in
+                    if let x = sig[navn], let n = x.n, let rate = x.treffrate {
+                        HStack(spacing: 6) {
+                            Text(navn).font(.caption2).foregroundStyle(Farge.tekst)
+                            Spacer()
+                            Text("\(Int(rate * 100)) %").font(.caption2.monospacedDigit())
+                                .foregroundStyle(Farge.dempet)
+                            Text("n=\(n)").font(.system(size: 9)).foregroundStyle(Farge.svak)
+                        }
+                    }
+                }
+            }
+        } else if let a = st.advarsel {
+            // Ikke en tom seksjon: si hvorfor den er tom, med kildens egne ord.
+            VStack(alignment: .leading, spacing: 3) {
+                Label("Treffrater per signal er skjult", systemImage: "eye.slash")
+                    .font(.caption2.weight(.medium)).foregroundStyle(Farge.dempet)
+                Text(a).font(.system(size: 10)).foregroundStyle(Farge.svak)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Vises fra n = \(FplStatistikk.nokGrunnlag). Høyeste nå er \(maksN).")
+                    .font(.system(size: 10)).foregroundStyle(Farge.svak)
+            }
+        }
+    }
+
+    private func telling(_ tittel: String, _ verdi: Int?, _ farge: Color) -> some View {
+        HStack(spacing: 4) {
+            Text("\(verdi ?? 0)").font(.title3.weight(.medium).monospacedDigit()).foregroundStyle(farge)
+            Text(tittel).font(.caption2).foregroundStyle(Farge.dempet)
         }
     }
 
