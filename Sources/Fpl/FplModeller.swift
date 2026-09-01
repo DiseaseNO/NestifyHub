@@ -6,6 +6,10 @@ import Observation
 /// Derfor: alt som kan mangle er valgfritt, og ukjente felter ignoreres i stillhet.
 /// `versjon` bumpes bare hvis felter FJERNES; nye felter kan komme uten varsel.
 struct FplStatus: Decodable {
+    /// Kontraktsversjonen appen er bygget for. Er `versjon` høyere, mangler vi felter
+    /// vi ikke vet om — da sier vi det heller enn å vise noe halvt.
+    static let støttetVersjon = 3
+
     let versjon: Int
     let generert: String
     let sesong: String
@@ -29,11 +33,14 @@ struct FplStatus: Decodable {
     struct Runde: Decodable {
         let nummer: Int
         let frist: String               // absolutt ISO-8601 — nedtellingen regnes herfra
-        let timer_til_frist: Double     // ⚠️ FRYST da fila ble skrevet. Ikke vis direkte.
         let paagaaende: Int?
         let laast: Bool                 // KUN om fristen har passert
+        /// 0 før runden er spilt — FPLs eget felt fylles først underveis.
+        /// **Ikke vis 0 som «snittet er null».**
         let snitt_liga: Int?
     }
+    // `timer_til_frist` fantes i v1–v2 og er FJERNET i v3. Den ble regnet ut ved skriving
+    // og forfalt aldri — målt 9,5 timer feil. Nedtellingen regnes fra `frist`.
 
     struct Spiller: Decodable, Identifiable {
         let id: Int
@@ -49,6 +56,18 @@ struct FplStatus: Decodable {
         let defcon_per_90: Double?
         let dodball: Dodball?
         let kamp: Kamp?
+        let forventet: Forventet?
+
+        /// xP fra to uavhengige kilder.
+        ///
+        /// ⚠️ `xp_modell_gyldig == false` betyr at egen modell er underkjent. Da skal
+        /// `xp_modell` **ikke vises som et tall alene** — `xp_fplform` er den uavhengige.
+        struct Forventet: Decodable {
+            let xp_modell: Double?
+            let xp_modell_gyldig: Bool?
+            let xp_fplform: Double?
+            let xp_sum6: Double?
+        }
 
         struct Dodball: Decodable { let straffe: Int?; let corner: Int?; let frispark: Int? }
         struct Kamp: Decodable { let mot: String; let hjemme: Bool; let vansker: Int }

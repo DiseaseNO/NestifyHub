@@ -27,9 +27,10 @@ struct FplNaa: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 if let s = lager.svar {
+                    if s.data.versjon > FplStatus.støttetVersjon { nyereKontrakt(s.data.versjon) }
                     topp(s)
                     dataAlder(s)
-                    if let b = s.data.bytte_status, !b.isEmpty { anbefaling(b, s) }
+                    anbefalingskort(s)
                     lagoversikt(s.data)
                     tropp(s.data)
                 } else if let f = lager.feil {
@@ -111,29 +112,85 @@ struct FplNaa: View {
         .foregroundStyle(gammelt ? Diagramfarge.varsel : Farge.svak)
     }
 
+    /// Kontrakten er nyere enn appen. Da mangler vi felter vi ikke vet om — si det,
+    /// framfor å vise noe halvt som ser komplett ut.
+    private func nyereKontrakt(_ v: Int) -> some View {
+        Label("Dataene følger kontrakt v\(v); appen er bygget for v\(FplStatus.støttetVersjon). "
+              + "Noe kan mangle.", systemImage: "exclamationmark.triangle.fill")
+            .font(.caption).foregroundStyle(Diagramfarge.varsel)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
     // MARK: anbefaling
 
-    private func anbefaling(_ tekst: String, _ s: FplSvar) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("ANBEFALING").font(.caption2.weight(.semibold)).foregroundStyle(Farge.dempet)
-            Text(tekst)
-                .font(.footnote)
-                .foregroundStyle(Farge.tekst)
-                .fixedSize(horizontal: false, vertical: true)
-            if let sp = s.data.aapne_sporsmal, !sp.isEmpty {
-                Divider().overlay(Farge.strek)
-                Text("Åpne spørsmål som bærer den (\(sp.count))")
-                    .font(.caption2.weight(.medium)).foregroundStyle(Diagramfarge.varsel)
-                ForEach(sp.prefix(3), id: \.self) { q in
-                    Text("• " + q).font(.caption2).foregroundStyle(Farge.dempet)
+    /// Den strukturerte anbefalingen, ikke fritekst.
+    ///
+    /// `endrer_oppstilling` finnes nettopp så vi slipper å tolke `oppstilling: null` —
+    /// null betyr «ingen endring foreslått», ikke «tom oppstilling».
+    @ViewBuilder
+    private func anbefalingskort(_ s: FplSvar) -> some View {
+        let a = s.data.anbefaling
+        if a?.finnes == true || (s.data.bytte_status?.isEmpty == false) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("ANBEFALING").font(.caption2.weight(.semibold)).foregroundStyle(Farge.dempet)
+
+                if let a {
+                    HStack(spacing: 14) {
+                        if let k = a.kaptein { rolle("Kaptein", k.navn, k.klubb) }
+                        if let v = a.vise { rolle("Vise", v.navn, v.klubb) }
+                    }
+                    let antallBytter = a.bytter?.count ?? 0
+                    HStack(spacing: 6) {
+                        Image(systemName: antallBytter > 0 ? "arrow.left.arrow.right" : "pause.circle")
+                            .font(.caption2)
+                        Text(antallBytter > 0 ? "\(antallBytter) bytte\(antallBytter == 1 ? "" : "r")"
+                                              : "Ingen bytter foreslått")
+                            .font(.caption)
+                        if a.endrer_oppstilling == false {
+                            Text("· oppstillingen står").font(.caption2).foregroundStyle(Farge.svak)
+                        }
+                        if let c = a.chip { Text("· chip: \(c)").font(.caption2).foregroundStyle(Diagramfarge.varsel) }
+                    }
+                    .foregroundStyle(Farge.dempet)
+                    if let n = a.notat {
+                        Text(n).font(.caption2).foregroundStyle(Farge.dempet)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else if let b = s.data.bytte_status {
+                    Text(b).font(.footnote).foregroundStyle(Farge.tekst)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+                resten(s)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Farge.kort)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+
+    private func rolle(_ tittel: String, _ navn: String, _ klubb: String?) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(tittel).font(.system(size: 9)).foregroundStyle(Farge.svak)
+            Text(navn).font(.caption.weight(.medium)).foregroundStyle(Farge.tekst)
+            if let k = klubb { Text(k).font(.system(size: 9)).foregroundStyle(Farge.svak) }
+        }
+    }
+
+    private func resten(_ s: FplSvar) -> some View {
+        Group {
+            if let sp = s.data.aapne_sporsmal, !sp.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    Divider().overlay(Farge.strek)
+                    Text("Åpne spørsmål som bærer den (\(sp.count))")
+                        .font(.caption2.weight(.medium)).foregroundStyle(Diagramfarge.varsel)
+                    ForEach(sp.prefix(3), id: \.self) { q in
+                        Text("• " + q).font(.caption2).foregroundStyle(Farge.dempet)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Farge.kort)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: lag
@@ -205,6 +262,13 @@ struct FplNaa: View {
             // spilleprosent er null når spilleren er helt frisk — ikke tolk som 0.
             if let p = s.spilleprosent {
                 Text("\(p) %").font(.system(size: 9)).foregroundStyle(Diagramfarge.varsel)
+            }
+            // xP: egen modell er underkjent (`xp_modell_gyldig == false`), så vi viser
+            // den UAVHENGIGE kilden. Å vise et underkjent tall alene ville vært å påstå
+            // mer enn systemet står inne for.
+            if let f = s.forventet, let x = f.xp_fplform {
+                Text(String(format: "%.1f xP", x))
+                    .font(.system(size: 9).monospacedDigit()).foregroundStyle(Diagramfarge.serie1)
             }
         }
         .frame(maxWidth: .infinity)
