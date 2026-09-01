@@ -11,7 +11,7 @@ Kameraene bor i sin egen app (`CameraRelay`) og skal ikke inn her.
 |---|---|---|
 | Bundle-ID | `no.gustavs1.hjemme` | permanent — bytte betyr ny app i App Store Connect, nye profiler og ny paring på hver enhet |
 | Visningsnavn | **Nestify Hub** | settes av secreten `DISPLAY_NAME`, kan byttes uten kodeendring |
-| Repo / prosjekt / scheme | `Navet` | **internt** navn. Var visningsnavnet en periode; endres ikke, for det koster mer enn det smaker |
+| Repo / prosjekt / scheme | `NestifyHub` | internt navn, uten mellomrom — Xcode-schemes og filstier blir enklere |
 
 Appen er ikke et smarthus — den samler husholdet: lys og varme, strøm, bilene,
 handleliste, kalender, søppel, barnas oppgaver og FPL. Navnet er valgt så det tåler at

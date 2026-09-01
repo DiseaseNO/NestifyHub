@@ -56,13 +56,13 @@ platform :ios do
                 "PROVISIONING_PROFILE_SPECIFIER='#{profil}'"
 
     build_app(
-      scheme: "Navet",
+      scheme: "NestifyHub",
       # Release EKSPLISITT. Uten dette arkiverte Xcode med utviklings-signering og bad om
       # en «iOS App Development»-profil — og laget et NYTT utviklingssertifikat for hver
       # kjøring, til kontoens sertifikatkvote var brukt opp.
       configuration: "Release",
       export_method: "app-store",
-      project: "Navet.xcodeproj",
+      project: "NestifyHub.xcodeproj",
       xcargs: signering,
       # IKKE sett export_xcargs med de samme argumentene: gym legger selv
       # -authenticationKey* på eksport-steget når api_key er satt, og xcodebuild

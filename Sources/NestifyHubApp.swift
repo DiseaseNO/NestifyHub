@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// Nestify Hub — samleapp for husholdet. (Internt heter prosjektet Navet.)
+/// Nestify Hub — samleapp for husholdet.
 ///
 /// Bevisst TOM. Dette er skallet: prosjektfil, signering og TestFlight-løype, uten
 /// moduler og uten datalag. Modulene legges inn når strukturen er bestemt.
 ///
 /// Kameraene bor i sin egen app (CameraRelay) og skal ikke inn her.
 @main
-struct NavetApp: App {
+struct NestifyHubApp: App {
     var body: some Scene {
         WindowGroup {
             Hovedvisning()

@@ -98,8 +98,8 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild build \
-            -project Navet.xcodeproj \
-            -scheme Navet \
+            -project NestifyHub.xcodeproj \
+            -scheme NestifyHub \
             -sdk iphonesimulator \
             -configuration Debug \
             -derivedDataPath dd \
@@ -124,7 +124,7 @@ jobs:
           echo "simulator: $UDID"
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
-          xcrun simctl install "$UDID" dd/Build/Products/Debug-iphonesimulator/Navet.app
+          xcrun simctl install "$UDID" dd/Build/Products/Debug-iphonesimulator/NestifyHub.app
           xcrun simctl launch "$UDID" no.gustavs1.hjemme
 
           # Vent til appen ER i forgrunnen. Uten dette traff skjermbildet hjemskjermen,
@@ -137,10 +137,10 @@ jobs:
           xcrun simctl io "$UDID" screenshot skjerm-1-skall.png
 
           xcrun simctl spawn "$UDID" log show --style compact --last 3m \
-            --predicate 'processImagePath CONTAINS "Navet"' > app-konsoll.txt 2>&1 || true
+            --predicate 'processImagePath CONTAINS "NestifyHub"' > app-konsoll.txt 2>&1 || true
           echo "--- siste linjer fra appen ---"
           tail -25 app-konsoll.txt || true
-          cp ~/Library/Logs/DiagnosticReports/Navet* . 2>/dev/null || true
+          cp ~/Library/Logs/DiagnosticReports/NestifyHub* . 2>/dev/null || true
 
       - name: Last opp skjermbilder
         if: always()
