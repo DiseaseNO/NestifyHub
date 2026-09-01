@@ -133,10 +133,11 @@ jobs:
       # øyeblikksbilde av de ekte svarene ligger i `CI_DATA`, og serveres lokalt over
       # TLS. Appen ser altså virkelige tall, uten at noe må åpnes utenfra.
       - name: Legg ut datasettet lokalt
-        if: ${{ secrets.CI_DATA != '' }}
         env:
           CI_DATA: ${{ secrets.CI_DATA }}
         run: |
+          # `secrets` kan ikke brukes i en `if:`-betingelse, så sjekken må stå her.
+          [ -n "$CI_DATA" ] || { echo "::warning::CI_DATA mangler — appen får ingen data"; exit 0; }
           printf '%s' "$CI_DATA" | base64 --decode | gunzip > ci-data.json
           python3 -c "import json;d=json.load(open('ci-data.json'));print('datasett:', ', '.join(d))"
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
