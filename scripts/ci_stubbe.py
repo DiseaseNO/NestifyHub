@@ -35,7 +35,7 @@ class Behandler(BaseHTTPRequestHandler):
         pass            # stille; loggen er allerede full av simulatorstøy
 
 
-tjener = HTTPServer(("127.0.0.1", port), Behandler)
+tjener = HTTPServer(("localhost", port), Behandler)
 kontekst = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 kontekst.load_cert_chain(cert, nokkel)
 tjener.socket = kontekst.wrap_socket(tjener.socket, server_side=True)
