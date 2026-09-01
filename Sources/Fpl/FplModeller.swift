@@ -231,7 +231,10 @@ struct FplTriangulering: Decodable {
             let retning: String        // "framover" | "bakover"
             let kilde: String?
             let enhet: String?
-            let verdier: [String: Double]
+            /// Verdiene kan være `null` — et signal kan finnes uten å være målt ennå
+            /// (scorer-odds før bookmakerne har åpnet runden). Det er IKKE det samme som
+            /// null i verdi, og var erklært `Double`: hele filen lot seg ikke lese.
+            let verdier: [String: Double?]
             let peker_mot: String?     // "A" | "B" | "uavgjort"
             let vekt: String?          // "hoy" | "middels" | "lav"
             let merknad: String?

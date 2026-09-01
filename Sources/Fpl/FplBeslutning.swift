@@ -112,11 +112,13 @@ struct FplBeslutning: View {
     private func dumbbell(_ b: FplTriangulering.Beslutning) -> some View {
         VStack(spacing: 10) {
             ForEach(b.signaler) { s in
-                let va = s.verdier["A"] ?? 0
-                let vb = s.verdier["B"] ?? 0
-                let maks = max(abs(va), abs(vb))
-                let na = maks > 0 ? abs(va) / maks : 0
-                let nb = maks > 0 ? abs(vb) / maks : 0
+                // `?? nil` fordi oppslaget gir `Double??` — nøkkelen kan mangle, og
+                // verdien kan være null. Begge betyr «ikke målt», aldri null i verdi.
+                let va = (s.verdier["A"] ?? nil)
+                let vb = (s.verdier["B"] ?? nil)
+                let maks = max(abs(va ?? 0), abs(vb ?? 0))
+                let na = maks > 0 ? abs(va ?? 0) / maks : 0
+                let nb = maks > 0 ? abs(vb ?? 0) / maks : 0
 
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {
@@ -134,19 +136,31 @@ struct FplBeslutning: View {
                     }
                     .foregroundStyle(Farge.dempet)
 
+                    // Et umålt signal tegnes ikke. En prikk på null ville sett ut som
+                    // et svar, og påstått noe dataene ikke sier.
+                    if va == nil && vb == nil {
+                        Text("ikke målt ennå")
+                            .font(.system(size: 10)).foregroundStyle(Farge.svak)
+                            .frame(height: 22, alignment: .leading)
+                    } else {
                     Chart {
                         RuleMark(xStart: .value("A", na), xEnd: .value("B", nb), y: .value("Signal", s.navn))
                             .foregroundStyle(Farge.strek)
                             .lineStyle(.init(lineWidth: 2))
-                        PointMark(x: .value("A", na), y: .value("Signal", s.navn))
-                            .foregroundStyle(lys).symbolSize(90)
-                        PointMark(x: .value("B", nb), y: .value("Signal", s.navn))
-                            .foregroundStyle(mørk).symbolSize(90)
+                        if va != nil {
+                            PointMark(x: .value("A", na), y: .value("Signal", s.navn))
+                                .foregroundStyle(lys).symbolSize(90)
+                        }
+                        if vb != nil {
+                            PointMark(x: .value("B", nb), y: .value("Signal", s.navn))
+                                .foregroundStyle(mørk).symbolSize(90)
+                        }
                     }
                     .chartXScale(domain: -0.08...1.08)
                     .chartXAxis(.hidden)
                     .chartYAxis(.hidden)
                     .frame(height: 22)
+                    }
 
                     HStack {
                         Text(tall(va, s.enhet)).font(.system(size: 10).monospacedDigit()).foregroundStyle(lys)
@@ -163,7 +177,8 @@ struct FplBeslutning: View {
         }
     }
 
-    private func tall(_ v: Double, _ enhet: String?) -> String {
+    private func tall(_ v: Double?, _ enhet: String?) -> String {
+        guard let v else { return "–" }
         let s = v == v.rounded() ? String(Int(v)) : String(format: "%.2f", v)
         guard let e = enhet, !e.isEmpty else { return s }
         return e == "%" ? "\(s) %" : "\(s) \(e)"
