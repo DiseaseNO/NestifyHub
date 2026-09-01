@@ -23,6 +23,34 @@ struct FplStatus: Decodable {
     let aapne_sporsmal: [String]?
     let aapne_risikoer: [String]?
     let bytte_status: String?
+    let anbefaling: Anbefaling?
+    /// Odds-avledet per lag, alle 20, nøklet på klubbnavn. **Framoverskuende.**
+    let kampforventning: [String: Kampforventning]?
+
+    /// Den ventende beslutningen som struktur.
+    ///
+    /// ⚠️ `oppstilling == nil` betyr «ingen oppstillingsendring foreslått», ikke «tom
+    /// oppstilling». `endrer_oppstilling` finnes nettopp så vi slipper å tolke null.
+    struct Anbefaling: Decodable {
+        let finnes: Bool?
+        let skrevet: String?
+        let bytter: [Bytte]?
+        let chip: String?
+        let kaptein: Navngitt?
+        let vise: Navngitt?
+        let endrer_oppstilling: Bool?
+        let notat: String?
+
+        struct Navngitt: Decodable { let id: Int?; let navn: String; let klubb: String? }
+        struct Bytte: Decodable { let inn: Navngitt?; let ut: Navngitt? }
+    }
+
+    struct Kampforventning: Decodable {
+        let seier_pst: Double?
+        let over_2_5_pst: Double?
+        let motstander: String?
+        let hjemme: Bool?
+    }
 
     struct Lag: Decodable {
         let verdi: Double, bank: Double
@@ -56,6 +84,18 @@ struct FplStatus: Decodable {
         let defcon_per_90: Double?
         let dodball: Dodball?
         let kamp: Kamp?
+        let forventet: Forventet?
+
+        /// xP fra to uavhengige kilder.
+        ///
+        /// ⚠️ `xp_modell_gyldig == false` betyr at egen modell er underkjent. Da skal
+        /// `xp_modell` **ikke vises som et tall alene** — `xp_fplform` er den uavhengige.
+        struct Forventet: Decodable {
+            let xp_modell: Double?
+            let xp_modell_gyldig: Bool?
+            let xp_fplform: Double?
+            let xp_sum6: Double?
+        }
         let forventet: Forventet?
 
         /// xP fra to uavhengige kilder.
