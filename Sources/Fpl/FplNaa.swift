@@ -13,7 +13,10 @@ struct FplNaa: View {
     let lager: FplLager
     @State private var nå = Date()          // driver nedtellingen mellom hentingene
     @State private var visOpphav: Opphav?
-    @State private var visSporsmal: [String]?
+    @State private var visSporsmal: Spørsmål?
+
+    /// Arket trenger noe Identifiable å henge på; en `[String]` er det ikke.
+    struct Spørsmål: Identifiable { let id = UUID(); let punkter: [String] }
 
     /// Hvert tall som bærer en beslutning skal kunne trykkes på og vise hvor det kom fra
     /// og hvor gammelt det er. Det er ikke pynt — det er produktet.
@@ -53,7 +56,7 @@ struct FplNaa: View {
         .task { await lager.følg() }
         .refreshable { await lager.last() }
         .sheet(item: $visOpphav) { o in opphavsark(o) }
-        .sheet(item: $visSporsmal) { sp in sporsmaalsark(sp) }
+        .sheet(item: $visSporsmal) { sp in sporsmaalsark(sp.punkter) }
     }
 
     /// Anbefalingen som én setning, satt sammen av `bytter`, `endrer_oppstilling`,
@@ -219,7 +222,7 @@ struct FplNaa: View {
         Group {
             if let sp = s.data.aapne_sporsmal, !sp.isEmpty {
                 Divider().overlay(Farge.strek)
-                Button { visSporsmal = sp } label: {
+                Button { visSporsmal = .init(punkter: sp) } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "questionmark.circle").font(.caption2)
                         Text("\(sp.count) åpne spørsmål bak anbefalingen").font(.caption2)
@@ -390,9 +393,4 @@ struct FplNaa: View {
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Lukk") { visSporsmal = nil } } }
         }
     }
-}
-
-/// `[String]` må være Identifiable for å kunne styre et ark.
-extension Array: @retroactive Identifiable where Element == String {
-    public var id: String { joined() }
 }
