@@ -128,14 +128,32 @@ jobs:
           fi
           tail -3 bygg.log
 
+      # Runneren står i USA og slipper ikke gjennom brannmuren hjemme — TCP-connect
+      # timer ut. Derfor tar vi dataene MED inn i kjøringen: et ferskt, komprimert
+      # øyeblikksbilde av de ekte svarene ligger i `CI_DATA`, og serveres lokalt over
+      # TLS. Appen ser altså virkelige tall, uten at noe må åpnes utenfra.
+      - name: Legg ut datasettet lokalt
+        if: ${{ secrets.CI_DATA != '' }}
+        env:
+          CI_DATA: ${{ secrets.CI_DATA }}
+        run: |
+          printf '%s' "$CI_DATA" | base64 --decode | gunzip > ci-data.json
+          python3 -c "import json;d=json.load(open('ci-data.json'));print('datasett:', ', '.join(d))"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout ci-nokkel.pem -out ci-cert.pem \
+            -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost" 2>/dev/null
+          python3 scripts/ci_stubbe.py ci-data.json 8443 ci-cert.pem ci-nokkel.pem &
+          for i in $(seq 1 20); do
+            curl -ks https://localhost:8443/api/health >/dev/null && break
+            sleep 1
+          done
+          echo "stubbe oppe"
+
       # Uten dette bygger vi blindt: koden kan kompilere feilfritt og likevel krasje ved
       # oppstart eller se helt gal ut. Simulatoren pares med en egen enhet på hjemmeserveren
       # (rolle `ci`: kan LESE fpl-data og legge fra seg skjermbilder, ingenting mer), og
       # startes én gang per skjerm med `-skjerm` — enklere og mer robust enn å simulere trykk.
       - name: Kjør appen i simulator
-        env:
-          CI_VERT: ${{ secrets.CI_VERT }}
-          CI_TOKEN: ${{ secrets.CI_TOKEN }}
         run: |
           set -o pipefail
           # Velg en tilgjengelig iPhone uten å hardkode modellnavn — runner-bildene
@@ -146,6 +164,8 @@ jobs:
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" dd/Build/Products/Debug-iphonesimulator/NestifyHub.app
+          # Simulatoren må stole på stubbens sertifikat; appen snakker bare https.
+          [ -f ci-cert.pem ] && xcrun simctl keychain "$UDID" add-root-cert ci-cert.pem
 
           # $1 = filnavn, resten = oppstartsargumenter til appen
           knips() {
@@ -163,13 +183,14 @@ jobs:
           }
 
           knips 1-paring
-          if [ -n "$CI_TOKEN" ]; then
-            knips 2-moduler   -server "$CI_VERT" -token "$CI_TOKEN"
+          if [ -f ci-data.json ]; then
+            VERT=localhost:8443
+            knips 2-moduler   -server "$VERT" -token ci
             for skjerm in naa beslutning historikk helse; do
-              knips "3-$skjerm" -server "$CI_VERT" -token "$CI_TOKEN" -skjerm "$skjerm"
+              knips "3-$skjerm" -server "$VERT" -token ci -skjerm "$skjerm"
             done
           else
-            echo "::warning::CI_TOKEN mangler — bare paringsskjermen er knipset"
+            echo "::warning::CI_DATA mangler — bare paringsskjermen er knipset"
           fi
 
           xcrun simctl spawn "$UDID" log show --style compact --last 5m \
@@ -177,24 +198,24 @@ jobs:
           echo "--- siste linjer fra appen ---"
           tail -25 app-konsoll.txt || true
 
-      # Skjermbildene viser EKTE tall fra huset. Som byggeartefakter ville de ligget åpent
-      # på et offentlig repo, så de sendes til hjemmeserveren i stedet og forlater aldri
-      # huset. Se `backend/src/ci.ts` i smarthus-repoet.
-      - name: Send skjermbildene hjem
+      # Skjermbildene viser EKTE tall fra huset, og artefakter på et offentlig repo er
+      # åpne for alle. Derfor krypteres de med en nøkkel som bare finnes i Vault og i
+      # denne repoets hemmeligstore — artefakten er ubrukelig for andre.
+      - name: Krypter og last opp skjermbildene
         if: always()
         env:
-          CI_VERT: ${{ secrets.CI_VERT }}
-          CI_TOKEN: ${{ secrets.CI_TOKEN }}
+          NOKKEL: ${{ secrets.CI_ARTEFAKT_NOKKEL }}
         run: |
-          [ -n "$CI_TOKEN" ] || { echo "ingen CI_TOKEN — hopper over"; exit 0; }
-          send() {
-            curl -sS --fail-with-body -X POST \
-              -H "Authorization: Bearer $CI_TOKEN" \
-              -H "X-CI-Kjoring: ${{ github.run_number }}" \
-              -H "Content-Type: $2" --data-binary "@$1" \
-              "https://$CI_VERT/api/kamera/ci-skjerm/$1" \
-              -o /dev/null -w "  $1 -> %{http_code}\n" || echo "  $1 FEILET"
-          }
-          for f in *.png; do [ -e "$f" ] && send "$f" image/png; done
-          [ -e app-konsoll.txt ] && send app-konsoll.txt text/plain
-          true
+          [ -n "$NOKKEL" ] || { echo "::warning::CI_ARTEFAKT_NOKKEL mangler — laster ikke opp"; exit 0; }
+          tar czf skjermbilder.tar.gz *.png app-konsoll.txt 2>/dev/null || tar czf skjermbilder.tar.gz *.png
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+            -in skjermbilder.tar.gz -out skjermbilder.enc -pass env:NOKKEL
+          ls -l skjermbilder.enc
+
+      - name: Last opp
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skjermbilder
+          path: skjermbilder.enc
+          retention-days: 7
