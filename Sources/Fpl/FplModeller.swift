@@ -96,18 +96,6 @@ struct FplStatus: Decodable {
             let xp_fplform: Double?
             let xp_sum6: Double?
         }
-        let forventet: Forventet?
-
-        /// xP fra to uavhengige kilder.
-        ///
-        /// ⚠️ `xp_modell_gyldig == false` betyr at egen modell er underkjent. Da skal
-        /// `xp_modell` **ikke vises som et tall alene** — `xp_fplform` er den uavhengige.
-        struct Forventet: Decodable {
-            let xp_modell: Double?
-            let xp_modell_gyldig: Bool?
-            let xp_fplform: Double?
-            let xp_sum6: Double?
-        }
 
         struct Dodball: Decodable { let straffe: Int?; let corner: Int?; let frispark: Int? }
         struct Kamp: Decodable { let mot: String; let hjemme: Bool; let vansker: Int }

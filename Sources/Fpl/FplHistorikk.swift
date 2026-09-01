@@ -88,25 +88,27 @@ struct FplHistorikk_Visning: View {
             : n >= 1000 ? "\(n / 1000)k" : "\(n)"
     }
 
+    /// Ett beslutningskort.
+    ///
+    /// Referanseraden er `gw2-szoboszlai-for-gibbswhite`: **poeng_effekt −9** og
+    /// **premiss_holdt true**. Byttet tapte ni poeng fordi lavsannsynlighetsgrenen landet
+    /// — resonnementet var likevel riktig. Skjermen er bygget rundt akkurat den raden:
+    ///
+    /// 1. **Premisset er overskriften**, poengene er en fotnote. Motsatt rekkefølge ville
+    ///    stemplet ukas grundigst begrunnede beslutning som en tabbe.
+    /// 2. **Poengeffekten har ingen dom-farge.** Rødt på −9 ER en dom. Tallet er en måling;
+    ///    vurderingen står i premisset. Samme prinsipp som retningsikonene i «Beslutningen».
+    /// 3. **Når de to spriker, sies det høyt.** At premisset holdt og det likevel kostet
+    ///    poeng er ikke en selvmotsigelse å skjule — det er nøyaktig det appen finnes for.
     private func beslutning(_ b: FplHistorikk.Runde.Beslutning) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .top, spacing: 8) {
-                // Premisset — holdt resonnementet? Ikon OG tekst, ikke bare farge.
-                if let holdt = b.utfall?.premiss_holdt {
-                    Label(holdt ? "premisset holdt" : "premisset holdt ikke",
-                          systemImage: holdt ? "checkmark.seal.fill" : "xmark.seal.fill")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(holdt ? Diagramfarge.god : Diagramfarge.alvorlig)
-                }
-                Spacer()
-                // Poengeffekten er en EGEN opplysning, ikke en dom over resonnementet.
-                if let p = b.utfall?.poeng_effekt {
-                    Text(p > 0 ? "+\(p)" : "\(p)")
-                        .font(.system(size: 11, weight: .medium).monospacedDigit())
-                        .foregroundStyle(p > 0 ? Diagramfarge.god : (p < 0 ? Diagramfarge.alvorlig : Farge.dempet))
-                    Text("poeng").font(.system(size: 9)).foregroundStyle(Farge.svak)
-                }
-            }
+        let holdt = b.utfall?.premiss_holdt
+        let poeng = b.utfall?.poeng_effekt
+        // Sprik = resonnementet og utfallet peker hver sin vei.
+        let spriker = holdt.map { h in
+            (h && (poeng ?? 0) < 0) || (!h && (poeng ?? 0) > 0)
+        } ?? false
+
+        return VStack(alignment: .leading, spacing: 6) {
             Text(b.hva).font(.caption.weight(.medium)).foregroundStyle(Farge.tekst)
                 .fixedSize(horizontal: false, vertical: true)
             if let g = b.begrunnelse {
@@ -118,15 +120,50 @@ struct FplHistorikk_Visning: View {
                     .font(.system(size: 10)).foregroundStyle(Diagramfarge.varsel)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if let k = b.utfall?.premiss_kommentar {
-                Text(k).font(.system(size: 10)).foregroundStyle(Farge.svak)
-                    .fixedSize(horizontal: false, vertical: true)
+
+            if holdt != nil || poeng != nil {
+                Divider().overlay(Farge.strek).padding(.vertical, 1)
+                utfall(holdt: holdt, poeng: poeng, spriker: spriker,
+                       kommentar: b.utfall?.premiss_kommentar)
             }
+
             Text(b.dato).font(.system(size: 9).monospacedDigit()).foregroundStyle(Farge.svak)
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Farge.kort2)
         .clipShape(RoundedRectangle(cornerRadius: 9))
+    }
+
+    @ViewBuilder
+    private func utfall(holdt: Bool?, poeng: Int?, spriker: Bool, kommentar: String?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let h = holdt {
+                // Ikon OG tekst — fargen alene skal aldri bære betydningen.
+                Label(h ? "Premisset holdt" : "Premisset holdt ikke",
+                      systemImage: h ? "checkmark.seal.fill" : "xmark.seal.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(h ? Diagramfarge.god : Diagramfarge.alvorlig)
+            }
+            if let k = kommentar {
+                Text(k).font(.system(size: 10)).foregroundStyle(Farge.dempet)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 4) {
+                // Nøytral farge med vilje: måling, ikke dom.
+                Text(poeng.map { $0 > 0 ? "+\($0)" : "\($0)" } ?? "–")
+                    .font(.system(size: 10, weight: .medium).monospacedDigit())
+                Text("poeng av byttet")
+                    .font(.system(size: 10))
+            }
+            .foregroundStyle(Farge.svak)
+            if spriker, let h = holdt {
+                Text(h ? "Resonnementet var riktig selv om utfallet kostet poeng."
+                       : "Utfallet ble bra, men ikke av grunnen beslutningen hvilte på.")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Diagramfarge.varsel)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
