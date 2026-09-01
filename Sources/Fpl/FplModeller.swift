@@ -20,8 +20,43 @@ struct FplStatus: Decodable {
     let kilder: [Kilde]
     let odds_kvote_igjen: Int?
     let modell_status: String?
-    let aapne_sporsmal: [String]?
-    let aapne_risikoer: [String]?
+    let aapne_sporsmal: [Punkt]?
+    let aapne_risikoer: [Punkt]?
+    /// Kildens korte versjon av `modell_status`. Den lange er et arbeidsnotat.
+    let modell_status_sammendrag: String?
+
+    /// Et åpent spørsmål eller en kjent risiko, i tre lengder: `tittel`, `sammendrag`,
+    /// og hele notatet. Var rene strenger fram til 1. september 2026 — dekoderen tåler
+    /// begge, så en app som møter gamle data ikke går tom.
+    struct Punkt: Decodable, Identifiable {
+        let tittel: String?
+        let sammendrag: String?
+        let tekst: String
+        let alvor: String?
+        let siden: String?
+        let blokkerer: Bool?
+
+        var id: String { (tittel ?? "") + tekst }
+        /// Overskriften vi viser. Kildens tittel hvis den finnes — ellers ingenting
+        /// oppdiktet, bare teksten selv.
+        var overskrift: String { tittel ?? tekst }
+
+        init(from dekoder: Decoder) throws {
+            if let bare = try? dekoder.singleValueContainer().decode(String.self) {
+                tittel = nil; sammendrag = nil; tekst = bare
+                alvor = nil; siden = nil; blokkerer = nil
+                return
+            }
+            let c = try dekoder.container(keyedBy: Nøkler.self)
+            tittel = try c.decodeIfPresent(String.self, forKey: .tittel)
+            sammendrag = try c.decodeIfPresent(String.self, forKey: .sammendrag)
+            tekst = try c.decodeIfPresent(String.self, forKey: .tekst) ?? ""
+            alvor = try c.decodeIfPresent(String.self, forKey: .alvor)
+            siden = try c.decodeIfPresent(String.self, forKey: .siden)
+            blokkerer = try c.decodeIfPresent(Bool.self, forKey: .blokkerer)
+        }
+        private enum Nøkler: String, CodingKey { case tittel, sammendrag, tekst, alvor, siden, blokkerer }
+    }
     /// Kildens egen ordbok: hva verdiene og tallene deres betyr, med deres ord.
     ///
     /// Vi oversetter ikke lenger domenet selv — kilden tar beslutningene og er den eneste

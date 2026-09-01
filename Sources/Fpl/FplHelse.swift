@@ -140,6 +140,10 @@ struct FplHelse: View {
                 .font(.caption.weight(.medium)).foregroundStyle(Diagramfarge.varsel)
             // Statusen er vaktas arbeidsnotat, ofte et par skjermlengder. Dommen over
             // står alltid; notatet ligger ett trykk unna for den som vil ha begrunnelsen.
+            if let k = d.modell_status_sammendrag {
+                Text(k).font(.caption).foregroundStyle(Farge.dempet)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             DisclosureGroup("Vaktas notat") {
                 Text(d.modell_status ?? "ingen status")
                     .font(.system(size: 11, design: .monospaced))
@@ -157,9 +161,23 @@ struct FplHelse: View {
         Group {
             if let r = d.aapne_risikoer, !r.isEmpty {
                 boks("Kjente risikoer (\(r.count))") {
-                    ForEach(r, id: \.self) { x in
-                        Text("• " + x).font(.caption2).foregroundStyle(Farge.dempet)
-                            .fixedSize(horizontal: false, vertical: true)
+                    ForEach(r) { x in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(x.overskrift).font(.caption.weight(.medium))
+                                .foregroundStyle(Farge.tekst)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let k = x.sammendrag {
+                                Text(k).font(.caption2).foregroundStyle(Farge.dempet)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            if x.tittel != nil || x.sammendrag != nil, !x.tekst.isEmpty {
+                                DisclosureGroup("Hele notatet") {
+                                    Text(x.tekst).font(.system(size: 10)).foregroundStyle(Farge.svak)
+                                        .fixedSize(horizontal: false, vertical: true).padding(.top, 3)
+                                }
+                                .font(.system(size: 10)).tint(Farge.svak)
+                            }
+                        }
                     }
                 }
             }

@@ -16,7 +16,7 @@ struct FplNaa: View {
     @State private var visSporsmal: Spørsmål?
 
     /// Arket trenger noe Identifiable å henge på; en `[String]` er det ikke.
-    struct Spørsmål: Identifiable { let id = UUID(); let punkter: [String] }
+    struct Spørsmål: Identifiable { let id = UUID(); let punkter: [FplStatus.Punkt] }
 
     /// Hvert tall som bærer en beslutning skal kunne trykkes på og vise hvor det kom fra
     /// og hvor gammelt det er. Det er ikke pynt — det er produktet.
@@ -235,22 +235,6 @@ struct FplNaa: View {
         }
     }
 
-    /// Førstesetningen i et notat, brukt som overskrift.
-    ///
-    /// Flere notater åpner med en datostempel-stump («NY 28/8:»). Kutter vi på første
-    /// skilletegn blir overskriften den stumpen, som ikke sier noe — så vi går videre til
-    /// det første bruddet som faktisk gir en setning.
-    private func overskrift(_ tekst: String) -> String {
-        let ren = tekst.trimmingCharacters(in: .whitespacesAndNewlines)
-        var fra = ren.startIndex
-        while let brudd = ren[fra...].firstIndex(where: { $0 == "." || $0 == ":" }) {
-            let stykke = ren[ren.startIndex..<brudd].trimmingCharacters(in: .whitespaces)
-            if stykke.count >= 25 { return stykke }
-            fra = ren.index(after: brudd)
-            if ren.distance(from: ren.startIndex, to: fra) > 90 { break }
-        }
-        return ren.count > 90 ? String(ren.prefix(90)) + "…" : ren
-    }
 
     // MARK: lag
 
@@ -371,23 +355,43 @@ struct FplNaa: View {
     }
 
     /// Arket med de åpne spørsmålene. Overskrift per punkt, hele teksten bak et trykk.
-    private func sporsmaalsark(_ sp: [String]) -> some View {
+    private func sporsmaalsark(_ sp: [FplStatus.Punkt]) -> some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 14) {
                     Text("Spørsmål vakta ikke har svart på ennå. De endrer ikke "
                          + "anbefalingen, men de er grunnen til at den kan endre seg.")
                         .font(.caption2).foregroundStyle(Farge.svak)
                         .fixedSize(horizontal: false, vertical: true)
-                    ForEach(sp, id: \.self) { q in
-                        DisclosureGroup {
-                            Text(q).font(.caption2).foregroundStyle(Farge.dempet)
-                                .fixedSize(horizontal: false, vertical: true).padding(.top, 3)
-                        } label: {
-                            Text(overskrift(q)).font(.footnote).foregroundStyle(Farge.tekst)
-                                .multilineTextAlignment(.leading)
+                    ForEach(sp) { p in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Text(p.overskrift).font(.footnote.weight(.medium))
+                                    .foregroundStyle(Farge.tekst)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Spacer()
+                                if p.blokkerer == true {
+                                    Text("blokkerer").font(.system(size: 9))
+                                        .foregroundStyle(Diagramfarge.alvorlig)
+                                }
+                            }
+                            if let k = p.sammendrag {
+                                Text(k).font(.caption).foregroundStyle(Farge.dempet)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            if let d = p.siden {
+                                Text("åpent siden \(d)").font(.system(size: 9)).foregroundStyle(Farge.svak)
+                            }
+                            // Hele notatet bare hvis det sier noe mer enn overskriften.
+                            if !p.tekst.isEmpty, p.tittel != nil || p.sammendrag != nil {
+                                DisclosureGroup("Vaktas notat") {
+                                    Text(p.tekst).font(.caption2).foregroundStyle(Farge.svak)
+                                        .fixedSize(horizontal: false, vertical: true).padding(.top, 3)
+                                }
+                                .font(.caption2).tint(Farge.svak)
+                            }
                         }
-                        .tint(Farge.svak)
+                        .padding(.bottom, 2)
                     }
                 }
                 .padding(16)
