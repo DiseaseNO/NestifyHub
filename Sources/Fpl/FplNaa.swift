@@ -74,7 +74,13 @@ struct FplNaa: View {
             deler.append("Gjør ingenting — laget står som det er.")
         }
         if let k = a.kaptein?.navn {
-            deler.append(a.vise?.navn.map { "\(k) er kaptein, \($0) er vise." } ?? "\(k) er kaptein.")
+            // Ikke `a.vise?.navn.map {…}`: der binder `.map` seg til String som samling
+            // og gir `[String]?`, ikke den valgfrie strengen man tror man har.
+            if let v = a.vise?.navn {
+                deler.append("\(k) er kaptein, \(v) er vise.")
+            } else {
+                deler.append("\(k) er kaptein.")
+            }
         }
         if let c = a.chip { deler.append("Bruk chip: \(c).") }
         return deler.joined(separator: " ")
