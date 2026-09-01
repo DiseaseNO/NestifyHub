@@ -132,10 +132,27 @@ jobs:
       # timer ut. Derfor tar vi dataene MED inn i kjøringen: et ferskt, komprimert
       # øyeblikksbilde av de ekte svarene ligger i `CI_DATA`, og serveres lokalt over
       # TLS. Appen ser altså virkelige tall, uten at noe må åpnes utenfra.
+      # Byggeserveren står i utlandet og har hittil ikke sluppet gjennom brannmuren
+      # hjemme. Vi prøver den ekte veien først med kort tålmodighet — den dagen den
+      # åpnes, bytter kjøringen over av seg selv og bruker live data. Svarer den ikke,
+      # faller vi tilbake på øyeblikksbildet, og ingenting stopper opp.
+      - name: Svarer hjemmeserveren?
+        env:
+          CI_VERT: ${{ secrets.CI_VERT }}
+        run: |
+          if [ -n "$CI_VERT" ] && curl -s --max-time 10 "https://$CI_VERT/api/health" -o /dev/null; then
+            echo "hjemmeserveren svarer — appen kjører mot live data"
+            echo "HJEMME=1" >> "$GITHUB_ENV"
+          else
+            echo "ingen vei hjem — faller tilbake på øyeblikksbildet"
+            echo "HJEMME=" >> "$GITHUB_ENV"
+          fi
+
       - name: Legg ut datasettet lokalt
         env:
           CI_DATA: ${{ secrets.CI_DATA }}
         run: |
+          [ -z "$HJEMME" ] || { echo "hopper over — vi bruker den ekte serveren"; exit 0; }
           # `secrets` kan ikke brukes i en `if:`-betingelse, så sjekken må stå her.
           [ -n "$CI_DATA" ] || { echo "::warning::CI_DATA mangler — appen får ingen data"; exit 0; }
           printf '%s' "$CI_DATA" | base64 --decode | gunzip > ci-data.json
@@ -155,6 +172,9 @@ jobs:
       # (rolle `ci`: kan LESE fpl-data og legge fra seg skjermbilder, ingenting mer), og
       # startes én gang per skjerm med `-skjerm` — enklere og mer robust enn å simulere trykk.
       - name: Kjør appen i simulator
+        env:
+          CI_VERT: ${{ secrets.CI_VERT }}
+          CI_TOKEN: ${{ secrets.CI_TOKEN }}
         run: |
           set -o pipefail
           # Velg en tilgjengelig iPhone uten å hardkode modellnavn — runner-bildene
@@ -184,14 +204,18 @@ jobs:
           }
 
           knips 1-paring
-          if [ -f ci-data.json ]; then
-            VERT=localhost:8443
-            knips 2-moduler   -server "$VERT" -token ci
-            for skjerm in naa beslutning historikk helse; do
-              knips "3-$skjerm" -server "$VERT" -token ci -skjerm "$skjerm"
-            done
+          if [ -n "$HJEMME" ]; then
+            VERT="$CI_VERT"; TOKEN="$CI_TOKEN"
+          elif [ -f ci-data.json ]; then
+            VERT=localhost:8443; TOKEN=ci
           else
-            echo "::warning::CI_DATA mangler — bare paringsskjermen er knipset"
+            echo "::warning::verken vei hjem eller datasett — bare paringsskjermen er knipset"
+          fi
+          if [ -n "${VERT:-}" ]; then
+            knips 2-moduler   -server "$VERT" -token "$TOKEN"
+            for skjerm in naa beslutning historikk helse; do
+              knips "3-$skjerm" -server "$VERT" -token "$TOKEN" -skjerm "$skjerm"
+            done
           fi
 
           xcrun simctl spawn "$UDID" log show --style compact --last 5m \
@@ -199,14 +223,35 @@ jobs:
           echo "--- siste linjer fra appen ---"
           tail -25 app-konsoll.txt || true
 
-      # Skjermbildene viser EKTE tall fra huset, og artefakter på et offentlig repo er
-      # åpne for alle. Derfor krypteres de med en nøkkel som bare finnes i Vault og i
-      # denne repoets hemmeligstore — artefakten er ubrukelig for andre.
+      # Best er at bildene aldri havner på GitHub. Når veien hjem finnes, sendes de dit
+      # og forlater ikke huset. Se `backend/src/ci.ts` i smarthus-repoet.
+      - name: Send skjermbildene hjem
+        if: always()
+        env:
+          CI_VERT: ${{ secrets.CI_VERT }}
+          CI_TOKEN: ${{ secrets.CI_TOKEN }}
+        run: |
+          [ -n "$HJEMME" ] || { echo "ingen vei hjem — bildene krypteres i stedet"; exit 0; }
+          send() {
+            curl -sS --max-time 30 -X POST \
+              -H "Authorization: Bearer $CI_TOKEN" \
+              -H "X-CI-Kjoring: ${{ github.run_number }}" \
+              -H "Content-Type: $2" --data-binary "@$1" \
+              "https://$CI_VERT/api/kamera/ci-skjerm/$1" \
+              -o /dev/null -w "  $1 -> %{http_code}\n" || echo "  $1 FEILET"
+          }
+          for f in *.png; do [ -e "$f" ] && send "$f" image/png; done
+          [ -e app-konsoll.txt ] && send app-konsoll.txt text/plain
+          true
+
+      # Faller vi tilbake på artefakt, må bildene krypteres: repoet er offentlig, og
+      # artefakter der er åpne for alle. Nøkkelen finnes bare i Vault.
       - name: Krypter og last opp skjermbildene
         if: always()
         env:
           NOKKEL: ${{ secrets.CI_ARTEFAKT_NOKKEL }}
         run: |
+          [ -z "$HJEMME" ] || { echo "bildene er allerede sendt hjem"; exit 0; }
           [ -n "$NOKKEL" ] || { echo "::warning::CI_ARTEFAKT_NOKKEL mangler — laster ikke opp"; exit 0; }
           tar czf skjermbilder.tar.gz *.png app-konsoll.txt 2>/dev/null || tar czf skjermbilder.tar.gz *.png
           openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
@@ -214,7 +259,7 @@ jobs:
           ls -l skjermbilder.enc
 
       - name: Last opp
-        if: always()
+        if: always() && env.HJEMME == ''
         uses: actions/upload-artifact@v4
         with:
           name: skjermbilder
