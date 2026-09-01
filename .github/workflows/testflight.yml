@@ -105,10 +105,12 @@ jobs:
           # en secret framfor hardkodet verdi — da kan det byttes uten kodeendring.
           DISPLAY_NAME: ${{ secrets.DISPLAY_NAME || 'Nestify Hub' }}
 
+      # Loggen skrives til fil og vi plukker ut FEILENE hvis bygget ryker. Sto med
+      # `| tail -30` før, og da forsvant kompilatorfeilene i byggekommandoens eget
+      # etterspill — man så at det feilet, ikke hvorfor.
       - name: Bygg for simulator
         run: |
-          set -o pipefail
-          xcodebuild build \
+          if ! xcodebuild build \
             -project NestifyHub.xcodeproj \
             -scheme NestifyHub \
             -sdk iphonesimulator \
@@ -117,11 +119,15 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            CODE_SIGN_STYLE=Manual \
-            | tail -30
+            CODE_SIGN_STYLE=Manual > bygg.log 2>&1; then
+              echo "::group::kompilatorfeil"
+              grep -E "error:" bygg.log | sed 's|.*/Sources/|Sources/|' | sort -u | head -40
+              echo "::endgroup::"
+              tail -25 bygg.log
+              exit 1
+          fi
+          tail -3 bygg.log
 
-      # Runneren står utenfor hjemmenettet — samme utsiktspunkt som en telefon på
-      # mobilnett. Tester fra innsiden går ut og inn igjen (hairpin) og beviser ingenting.
       # Uten dette bygger vi blindt: koden kan kompilere feilfritt og likevel krasje
       # ved oppstart. Skallet er tomt, så vi trenger bare ETT skjermbilde — men det
       # beviser at appen faktisk starter.
