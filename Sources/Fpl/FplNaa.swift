@@ -261,7 +261,7 @@ struct FplNaa: View {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(maa > 0 ? "\(maa) må besvares før fristen" : "Ingenting venter på deg")
                                 .font(.caption.weight(.medium))
-                            Text(resten_undertekst(o, punkter))
+                            Text(undertekst(o, punkter))
                                 .font(.system(size: 10)).foregroundStyle(Farge.svak)
                         }
                         Spacer()
@@ -273,187 +273,13 @@ struct FplNaa: View {
         }
     }
 
-    private func resten_undertekst(_ o: FplStatus.Oversikt?, _ p: [FplStatus.Punkt]) -> String {
+    private func undertekst(_ o: FplStatus.Oversikt?, _ p: [FplStatus.Punkt]) -> String {
         let venter = o?.venter_paa_signal ?? p.filter { $0.kategori == "venter_paa_signal" }.count
         let står = o?.staaende ?? p.filter { $0.kategori == "staaende" }.count
         var d: [String] = []
         if venter > 0 { d.append("\(venter) venter på signal") }
         if står > 0 { d.append("\(står) står åpne") }
         return d.isEmpty ? "\(p.count) punkter" : d.joined(separator: " · ")
-    }
-
-    /// Nødløsning til kilden sender `sammendrag`: anbefalingen som én setning, satt
-    /// sammen av `bytter`, `endrer_oppstilling`, `kaptein` og `chip`.
-    ///
-    /// Den er mekanisk og sier bare det feltene sier — men den er vår, og teksten skal
-    /// være kildens. Se `docs/bestilling-fra-appen.md` §2 i FPL-repoet.
-    private func handling(_ a: FplStatus.Anbefaling) -> String {
-        var deler: [String] = []
-        let bytter = a.bytter ?? []
-        if let b = bytter.first, bytter.count == 1, let inn = b.inn?.navn, let ut = b.ut?.navn {
-            deler.append("Bytt inn \(inn) for \(ut).")
-        } else if !bytter.isEmpty {
-            deler.append("Gjør \(bytter.count) bytter.")
-        } else if a.endrer_oppstilling == true {
-            deler.append("Endre oppstillingen.")
-        } else {
-            deler.append("Gjør ingenting — laget står som det er.")
-        }
-        if let k = a.kaptein?.navn {
-            // Ikke `a.vise?.navn.map {…}`: der binder `.map` seg til String som samling
-            // og gir `[String]?`, ikke den valgfrie strengen man tror man har.
-            if let v = a.vise?.navn {
-                deler.append("\(k) er kaptein, \(v) er vise.")
-            } else {
-                deler.append("\(k) er kaptein.")
-            }
-        }
-        if let c = a.chip { deler.append("Bruk chip: \(c).") }
-        return deler.joined(separator: " ")
-    }
-
-    /// Hva som er nytt siden forrige eksport. Tom liste vises ikke — «ingenting er
-    /// endret» er ikke verdt en rad, men en endring er det man åpner appen for.
-    @ViewBuilder
-    private func endringer(_ d: FplStatus) -> some View {
-        if let e = d.endret, !e.isEmpty {
-            VStack(alignment: .leading, spacing: 5) {
-                Label("Nytt siden sist", systemImage: "sparkles")
-                    .font(.caption.weight(.semibold)).foregroundStyle(Diagramfarge.god)
-                ForEach(e) { x in
-                    Text(x.beskrivelse ?? [x.felt, x.fra, x.til].compactMap { $0 }.joined(separator: " → "))
-                        .font(.caption2).foregroundStyle(Farge.dempet)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Diagramfarge.god.opacity(0.10))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-        }
-    }
-
-    // MARK: nedtelling
-
-    @ViewBuilder
-    private func topp(_ s: FplSvar) -> some View {
-        let laast = s.data.runde.laast
-        let paagaar = (s.data.runde.paagaaende ?? 0) > 0
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Runde \(s.data.runde.nummer)")
-                .font(.footnote).foregroundStyle(Farge.dempet)
-
-            if laast && paagaar {
-                // Laget kan ikke endres nå. Ingen nedtelling, ingen handlinger.
-                Label("Runden pågår — laget er låst", systemImage: "lock.fill")
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(Diagramfarge.varsel)
-                if let sn = s.data.runde.snitt_liga, sn > 0 {
-                    Text("Ligasnitt \(sn)").font(.subheadline).foregroundStyle(Farge.dempet)
-                }
-            } else if let t = lager.sekunderTilFrist {
-                let haster = t > 0 && t < 3 * 3600
-                Text(nedtellingstekst(t))
-                    // ≥48 pt: dette er tallet man åpner appen for.
-                    .font(.system(size: 52, weight: .light).monospacedDigit())
-                    .foregroundStyle(t < 0 ? Farge.svak : (haster ? Diagramfarge.kritisk : Farge.tekst))
-                    .contentTransition(.numericText())
-                Text(t < 0 ? "siden frist" : "til frist")
-                    .font(.subheadline).foregroundStyle(Farge.dempet)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Under tre timer bytter vi til minutter — da er timer for grov oppløsning til å
-    /// ta en beslutning på.
-    private func nedtellingstekst(_ t: TimeInterval) -> String {
-        let s = Int(abs(t))
-        if s < 3 * 3600 { return "\(s / 60) min" }
-        if s < 86400 { return "\(s / 3600) t" }
-        return "\(s / 86400) d \((s % 86400) / 3600) t"
-    }
-
-    // MARK: alder
-
-    private func dataAlder(_ s: FplSvar) -> some View {
-        let alder = TimeInterval(s.kilde.data_alder_sek ?? 0)
-        let gammelt = alder > 3 * 3600
-        return HStack(spacing: 6) {
-            Image(systemName: gammelt ? "exclamationmark.circle.fill" : "clock")
-                .font(.caption2)
-            Text("Tallene er \(varighet(alder)) gamle")
-                .font(.caption)
-            if let f = s.kilde.feil {
-                Text("· henting feilet").font(.caption).foregroundStyle(Diagramfarge.kritisk)
-                    .help(f)
-            }
-        }
-        .foregroundStyle(gammelt ? Diagramfarge.varsel : Farge.svak)
-    }
-
-    /// Kontrakten er nyere enn appen. Da mangler vi felter vi ikke vet om — si det,
-    /// framfor å vise noe halvt som ser komplett ut.
-    private func nyereKontrakt(_ v: Int) -> some View {
-        Label("Dataene følger kontrakt v\(v); appen er bygget for v\(FplStatus.støttetVersjon). "
-              + "Noe kan mangle.", systemImage: "exclamationmark.triangle.fill")
-            .font(.caption).foregroundStyle(Diagramfarge.varsel)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    // MARK: anbefaling
-
-    /// Den strukturerte anbefalingen, ikke fritekst.
-    ///
-    /// `endrer_oppstilling` finnes nettopp så vi slipper å tolke `oppstilling: null` —
-    /// null betyr «ingen endring foreslått», ikke «tom oppstilling».
-    @ViewBuilder
-    private func anbefalingskort(_ s: FplSvar) -> some View {
-        let a = s.data.anbefaling
-        if a?.finnes == true || (s.data.bytte_status?.isEmpty == false) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("ANBEFALING").font(.caption2.weight(.semibold)).foregroundStyle(Farge.dempet)
-
-                if let a {
-                    // Setningen først. De strukturerte feltene ER forståelige; det er
-                    // fritekstet som ikke er det, og da skal fritekstet ikke stå øverst.
-                    Text(a.sammendrag ?? handling(a))
-                        .font(.callout.weight(.medium)).foregroundStyle(Farge.tekst)
-                        .fixedSize(horizontal: false, vertical: true)
-                    let antallBytter = a.bytter?.count ?? 0
-                    HStack(spacing: 6) {
-                        Image(systemName: antallBytter > 0 ? "arrow.left.arrow.right" : "pause.circle")
-                            .font(.caption2)
-                        Text(antallBytter > 0 ? "\(antallBytter) bytte\(antallBytter == 1 ? "" : "r")"
-                                              : "Ingen bytter foreslått")
-                            .font(.caption)
-                        if a.endrer_oppstilling == false {
-                            Text("· oppstillingen står").font(.caption2).foregroundStyle(Farge.svak)
-                        }
-                        if let c = a.chip { Text("· chip: \(c)").font(.caption2).foregroundStyle(Diagramfarge.varsel) }
-                    }
-                    .foregroundStyle(Farge.dempet)
-                    // Vaktas eget notat er en arbeidslogg med forkortelser og filnavn.
-                    // Den skal være tilgjengelig, men ikke være det første man møter.
-                    if let n = a.notat {
-                        DisclosureGroup("Vaktas notat") {
-                            Text(n).font(.caption2).foregroundStyle(Farge.dempet)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.top, 4)
-                        }
-                        .font(.caption2).tint(Farge.svak).foregroundStyle(Farge.dempet)
-                    }
-                } else if let b = s.data.bytte_status {
-                    Text(b).font(.footnote).foregroundStyle(Farge.tekst)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                resten(s)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Farge.kort)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
     }
 
 
@@ -575,15 +401,14 @@ struct FplNaa: View {
         .presentationDetents([.medium])
     }
 
-    /// Arket med de åpne spørsmålene. Overskrift per punkt, hele teksten bak et trykk.
     /// Punktene gruppert på kategori. Rekkefølgen er hele poenget: det som kan gjøres
     /// nå står øverst, driftsgjelda ligger kollapset nederst.
     private func sporsmaalsark(_ sp: Spørsmål) -> some View {
         let rekkefølge = ["runde", "venter_paa_signal", "avgjort_for_runden", "staaende"]
-        let tittel = ["runde": "Må besvares før fristen",
-                      "venter_paa_signal": "Venter på signal",
-                      "avgjort_for_runden": "Avgjort for runden",
-                      "staaende": "Står åpent"]
+        let overskrift = ["runde": "Må besvares før fristen",
+                          "venter_paa_signal": "Venter på signal",
+                          "avgjort_for_runden": "Avgjort for runden",
+                          "staaende": "Står åpent"]
         return NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -592,7 +417,7 @@ struct FplNaa: View {
                         if !i.isEmpty {
                             VStack(alignment: .leading, spacing: 8) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(tittel[kat] ?? kat) (\(i.count))")
+                                    Text("\(overskrift[kat] ?? kat) (\(i.count))")
                                         .font(.footnote.weight(.semibold))
                                         .foregroundStyle(kat == "runde" ? Diagramfarge.varsel : Farge.dempet)
                                     if let f = sp.oversikt?.forklaring?[kat] {
@@ -600,11 +425,11 @@ struct FplNaa: View {
                                             .fixedSize(horizontal: false, vertical: true)
                                     }
                                 }
-                                // Driftsgjeld ligger kollapset — den rører ikke runden.
                                 if kat == "staaende" {
+                                    // Driftsgjeld ligger kollapset — den rører ikke runden.
                                     DisclosureGroup("Vis alle \(i.count)") {
-                                        VStack(alignment: .leading, spacing: 10) {
-                                            ForEach(i) { punkt(  $0, dempet: true) }
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            ForEach(i) { punkt($0, dempet: true) }
                                         }
                                         .padding(.top, 6)
                                     }
@@ -637,7 +462,7 @@ struct FplNaa: View {
                 Text(k).font(.caption).foregroundStyle(Farge.dempet)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            // Det vi venter på er viktigere enn når punktet ble åpnet.
+            // Hva vi venter på er viktigere enn når punktet ble åpnet.
             if let v = p.venter_paa {
                 Label(v, systemImage: "hourglass").font(.system(size: 10))
                     .foregroundStyle(Farge.svak).fixedSize(horizontal: false, vertical: true)
