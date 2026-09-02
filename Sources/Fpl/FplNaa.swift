@@ -14,6 +14,7 @@ struct FplNaa: View {
     @State private var nå = Date()          // driver nedtellingen mellom hentingene
     @State private var visOpphav: Opphav?
     @State private var visSporsmal: Spørsmål?
+    @State private var visSpiller: FplStatus.Spiller?
 
     /// Arket trenger noe Identifiable å henge på; en `[String]` er det ikke.
     struct Spørsmål: Identifiable {
@@ -64,6 +65,7 @@ struct FplNaa: View {
         .refreshable { await lager.last() }
         .sheet(item: $visOpphav) { o in opphavsark(o) }
         .sheet(item: $visSporsmal) { sp in sporsmaalsark(sp) }
+        .sheet(item: $visSpiller) { FplSpillerark(spiller: $0) }
     }
 
     /// Nødløsning til kilden sender `sammendrag`: anbefalingen som én setning, satt
@@ -357,17 +359,19 @@ struct FplNaa: View {
             // xP: egen modell er underkjent (`xp_modell_gyldig == false`), så vi viser
             // den UAVHENGIGE kilden. Å vise et underkjent tall alene ville vært å påstå
             // mer enn systemet står inne for.
+            // Ingen Forklar-knapp her: hele kortet er en knapp, og en knapp inni en
+            // knapp gir uforutsigbar treffflate. Forklaringen står i detaljvisningen.
             if let f = s.forventet, let x = f.xp_fplform {
-                Forklar(nøkkel: "xp_fplform") {
-                    Text(String(format: "%.1f xP", x))
-                        .font(.system(size: 9).monospacedDigit()).foregroundStyle(Diagramfarge.serie1)
-                }
+                Text(String(format: "%.1f xP", x))
+                    .font(.system(size: 9).monospacedDigit()).foregroundStyle(Diagramfarge.serie1)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
         .background(Farge.kort)
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .onTapGesture { visSpiller = s }
     }
 
     private func vanskefarge(_ v: Int) -> Color {

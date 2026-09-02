@@ -184,6 +184,54 @@ struct FplStatus: Decodable {
         let dodball: Dodball?
         let kamp: Kamp?
         let forventet: Forventet?
+        /// Hva han faktisk har levert, runde for runde. Se `FplSpiller.swift`.
+        let levert: Levert?
+
+        /// Leveransen mot forventningen.
+        ///
+        /// ⚠️ Arkivet starter 02.09.2026 — `xp_predictions.csv` overskrives hver kjøring,
+        /// så for GW1 og GW2 finnes ingen bevart forventning. `forventet_xp` og `avvik`
+        /// er `null` der, og `avvik_dekning` («0/2») sier hvor mange runder som faktisk
+        /// kan bedømmes. Snittet skjules til dekningen betyr noe.
+        struct Levert: Decodable {
+            let runder: [Runde]?
+            let runder_eid: Int?
+            let poeng_hos_oss: Int?
+            let snitt_hos_oss: Double?
+            let forste_runde_eid: Int?
+            let avvik_snitt: Double?
+            let avvik_dekning: String?
+
+            struct Runde: Decodable, Identifiable {
+                let runde: Int
+                let poeng: Int?
+                let minutter: Int?
+                let xg: Double?
+                let xa: Double?
+                let bonus: Int?
+                /// Falsk = han spilte, men ikke for oss. Halve poenget med å se på en spiller.
+                let i_troppen: Bool?
+                let i_xi: Bool?
+                let kaptein: Bool?
+                let forventet_xp: Double?
+                let avvik: Double?
+                var id: Int { runde }
+
+                /// Rollen som etikett — farge er allerede brukt til noe annet.
+                var rolle: String {
+                    if i_troppen != true { return "ikke eid" }
+                    if kaptein == true { return "kaptein" }
+                    return i_xi == true ? "i XI" : "benk"
+                }
+            }
+
+            /// Hvor mange runder som faktisk har en bevart forventning, av totalt.
+            var dekning: (av: Int, total: Int)? {
+                guard let d = avvik_dekning else { return nil }
+                let d2 = d.split(separator: "/").compactMap { Int($0) }
+                return d2.count == 2 ? (d2[0], d2[1]) : nil
+            }
+        }
 
         /// xP fra to uavhengige kilder.
         ///
