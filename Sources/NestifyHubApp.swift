@@ -66,6 +66,15 @@ enum Testskjerm {
         #endif
     }
 
+    /// Åpner spørsmålsarket, som ellers krever et trykk.
+    static var sporsmaal: Bool {
+        #if DEBUG
+        UserDefaults.standard.bool(forKey: "sporsmal")
+        #else
+        false
+        #endif
+    }
+
     static var valgt: Int? {
         #if DEBUG
         switch UserDefaults.standard.string(forKey: "skjerm") {

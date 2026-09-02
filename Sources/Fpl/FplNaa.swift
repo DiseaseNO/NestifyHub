@@ -67,6 +67,10 @@ struct FplNaa: View {
             if !tomt, Testskjerm.spillerdetalj, visSpiller == nil {
                 visSpiller = lager.svar?.data.tropp.first
             }
+            if !tomt, Testskjerm.sporsmaal, visSporsmal == nil, let d = lager.svar?.data {
+                visSporsmal = .init(punkter: (d.aapne_sporsmal ?? []) + (d.aapne_risikoer ?? []),
+                                    oversikt: d.sporsmal_oversikt)
+            }
         }
         .refreshable { await lager.last() }
         .sheet(item: $visOpphav) { o in opphavsark(o) }

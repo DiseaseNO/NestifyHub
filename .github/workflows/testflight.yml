@@ -217,7 +217,8 @@ jobs:
               knips "3-$skjerm" -server "$VERT" -token "$TOKEN" -skjerm "$skjerm"
             done
             # Spillerdetaljene krever et trykk i appen; flagget åpner dem ved oppstart.
-            knips 4-spiller -server "$VERT" -token "$TOKEN" -skjerm naa -spillerdetalj 1
+            knips 4-spiller  -server "$VERT" -token "$TOKEN" -skjerm naa -spillerdetalj 1
+            knips 5-sporsmal -server "$VERT" -token "$TOKEN" -skjerm naa -sporsmal 1
           fi
 
           xcrun simctl spawn "$UDID" log show --style compact --last 5m \
