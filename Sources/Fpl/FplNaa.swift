@@ -415,10 +415,6 @@ struct FplNaa: View {
     /// nå står øverst, driftsgjelda ligger kollapset nederst.
     private func sporsmaalsark(_ sp: Spørsmål) -> some View {
         let rekkefølge = ["runde", "venter_paa_signal", "avgjort_for_runden", "staaende"]
-        let overskrift = ["runde": "Må besvares før fristen",
-                          "venter_paa_signal": "Venter på signal",
-                          "avgjort_for_runden": "Avgjort for runden",
-                          "staaende": "Står åpent"]
         return NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -427,9 +423,10 @@ struct FplNaa: View {
                         if !i.isEmpty {
                             VStack(alignment: .leading, spacing: 8) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(overskrift[kat] ?? kat) (\(i.count))")
+                                    Label("\(Kategori.navn(kat)) (\(i.count))",
+                                          systemImage: Kategori.ikon(kat))
                                         .font(.footnote.weight(.semibold))
-                                        .foregroundStyle(kat == "runde" ? Diagramfarge.varsel : Farge.dempet)
+                                        .foregroundStyle(Kategori.farge(kat))
                                     if let f = sp.oversikt?.forklaring?[kat] {
                                         Text(f).font(.system(size: 10)).foregroundStyle(Farge.svak)
                                             .fixedSize(horizontal: false, vertical: true)

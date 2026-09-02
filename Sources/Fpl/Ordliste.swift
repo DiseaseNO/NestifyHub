@@ -140,3 +140,41 @@ struct Ordlisteknapp: View {
         .sheet(isPresented: $vis) { Ordlisteark() }
     }
 }
+
+/// Kategoriene et åpent spørsmål kan ha, med navn, farge og ikon på ett sted.
+///
+/// Fargene er en rampe etter hvor mye som venter på DEG: gult krever handling nå, blått
+/// venter på noe utenfra, grønt er avgjort, grått står bare. Uten farge på de to midterste
+/// så «venter på signal» og «avgjort for runden» like døde ut som driftsgjelda, selv om
+/// de sier helt forskjellige ting.
+///
+/// **Fargen står aldri alene** — hver overskrift har både ikon og tekst.
+enum Kategori {
+    static func navn(_ k: String) -> String {
+        switch k {
+        case "runde":             "Må besvares før fristen"
+        case "venter_paa_signal": "Venter på signal"
+        case "avgjort_for_runden": "Avgjort for runden"
+        case "staaende":          "Står åpent"
+        default:                  k
+        }
+    }
+
+    static func farge(_ k: String) -> Color {
+        switch k {
+        case "runde":             Diagramfarge.varsel   // krever handling nå
+        case "venter_paa_signal": Farge.kjol            // venter på noe utenfra
+        case "avgjort_for_runden": Diagramfarge.god     // ferdig for denne runden
+        default:                  Farge.dempet          // står, rører ikke runden
+        }
+    }
+
+    static func ikon(_ k: String) -> String {
+        switch k {
+        case "runde":             "exclamationmark.circle.fill"
+        case "venter_paa_signal": "hourglass"
+        case "avgjort_for_runden": "checkmark.seal.fill"
+        default:                  "tray.full"
+        }
+    }
+}
