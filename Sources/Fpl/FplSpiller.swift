@@ -114,7 +114,8 @@ struct FplSpillerark: View {
             // eierskap uten at det havner i en andre legende.
             HStack(spacing: 14) {
                 legendeprikk(Diagramfarge.serie1, "Poeng")
-                legendeprikk(Diagramfarge.serie2, "Forventet")
+                // Ingen legende for en serie som ikke er tegnet.
+                if !forventede.isEmpty { legendeprikk(Diagramfarge.serie2, "Forventet") }
                 if manglerEid { legendeprikk(Diagramfarge.serie1.opacity(0.3), "ikke eid") }
                 Spacer()
             }
@@ -144,17 +145,25 @@ struct FplSpillerark: View {
                         .symbol(.square).symbolSize(50)
                 }
             }
-            .chartXAxisLabel("Runde", alignment: .center)
-            .chartYAxisLabel("Poeng", alignment: .center)
-            .chartXAxis { AxisMarks(values: r.map(\.runde)) { v in
+            // Y-tittelen må stå LODRETT til venstre. Med standardplassering havner den
+            // midtstilt over diagrammet og leses som en overskrift.
+            .chartYAxisLabel(position: .leading, alignment: .center) {
+                Text("Poeng").font(.system(size: 9)).foregroundStyle(Farge.dempet)
+            }
+            .chartXAxisLabel(position: .bottom, alignment: .center) {
+                Text("Runde").font(.system(size: 9)).foregroundStyle(Farge.dempet)
+            }
+            // Luft i hver ende, ellers klippes prikken for første og siste runde i to.
+            .chartXScale(domain: xakse(r))
+            .chartXAxis { AxisMarks(values: r.map(\.runde)) { _ in
                 AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.svak)
                 AxisGridLine().foregroundStyle(Farge.strek.opacity(0.5))
             } }
-            .chartYAxis { AxisMarks { _ in
+            .chartYAxis { AxisMarks(position: .leading) { _ in
                 AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.svak)
                 AxisGridLine().foregroundStyle(Farge.strek.opacity(0.5))
             } }
-            .frame(height: 150)
+            .frame(height: 160)
 
             if forventede.isEmpty {
                 Text("Forventningen mangler for disse rundene — arkivet startet "
@@ -163,6 +172,13 @@ struct FplSpillerark: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    /// Runde-aksen med en halv rundes luft i hver ende.
+    private func xakse(_ r: [FplStatus.Spiller.Levert.Runde]) -> ClosedRange<Double> {
+        let n = r.map { Double($0.runde) }
+        let lav = (n.min() ?? 1) - 0.4, høy = (n.max() ?? 1) + 0.4
+        return lav...høy
     }
 
     private func legendeprikk(_ farge: Color, _ tekst: String) -> some View {
@@ -201,13 +217,17 @@ struct FplSpillerark: View {
                             .foregroundStyle((x.avvik ?? 0) >= 0 ? Diagramfarge.god : Diagramfarge.alvorlig)
                     }
                 }
-                .chartXAxisLabel("Runde", alignment: .center)
-                .chartYAxisLabel("Avvik i poeng", alignment: .center)
-                .chartYAxis { AxisMarks { _ in
+                .chartYAxisLabel(position: .leading, alignment: .center) {
+                    Text("Avvik i poeng").font(.system(size: 9)).foregroundStyle(Farge.dempet)
+                }
+                .chartXAxisLabel(position: .bottom, alignment: .center) {
+                    Text("Runde").font(.system(size: 9)).foregroundStyle(Farge.dempet)
+                }
+                .chartYAxis { AxisMarks(position: .leading) { _ in
                     AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.svak)
                     AxisGridLine().foregroundStyle(Farge.strek.opacity(0.5))
                 } }
-                .frame(height: 110)
+                .frame(height: 120)
                 HStack(spacing: 6) {
                     // Snittet bare når det hviler på mer enn én runde.
                     if let s = l.avvik_snitt, let d = l.dekning, d.av > 1 {
