@@ -56,6 +56,16 @@ private func seedFraOppstartsargumenter() {
 /// Hvilken skjerm CI skal åpne rett i, gitt som `-skjerm naa|beslutning|historikk|helse`.
 /// Utenfor DEBUG er `valgt` alltid `nil`, så koden finnes ikke i det som installeres.
 enum Testskjerm {
+    /// Åpner spillerdetaljene på første spiller, så skjermbildene i CI dekker en visning
+    /// som ellers krever et trykk.
+    static var spillerdetalj: Bool {
+        #if DEBUG
+        UserDefaults.standard.bool(forKey: "spillerdetalj")
+        #else
+        false
+        #endif
+    }
+
     static var valgt: Int? {
         #if DEBUG
         switch UserDefaults.standard.string(forKey: "skjerm") {

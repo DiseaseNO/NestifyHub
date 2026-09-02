@@ -62,6 +62,12 @@ struct FplNaa: View {
         .toolbarBackground(Farge.flate, for: .navigationBar)
         .onReceive(takt) { nå = $0 }
         .task { await lager.følg() }
+        .onChange(of: lager.svar == nil) { _, tomt in
+            // Bare i CI: åpne detaljene automatisk så skjermbildet dekker dem.
+            if !tomt, Testskjerm.spillerdetalj, visSpiller == nil {
+                visSpiller = lager.svar?.data.tropp.first
+            }
+        }
         .refreshable { await lager.last() }
         .sheet(item: $visOpphav) { o in opphavsark(o) }
         .sheet(item: $visSporsmal) { sp in sporsmaalsark(sp) }
