@@ -114,10 +114,14 @@ struct FplSpillerark: View {
             }
             .chartXAxis(.hidden)
             .chartYAxis(.hidden)
-            .frame(height: 60)
-            HStack(spacing: 5) {
-                Circle().fill(Farge.strek).frame(width: 7, height: 7)
-                Text("runder vi ikke eide ham").font(.system(size: 9)).foregroundStyle(Farge.svak)
+            .frame(height: max(40, CGFloat(min(r.count, 10)) * 12))
+            // Legenden bare når den forklarer noe: eide vi ham hele veien, finnes det
+            // ingen hule prikker å forklare.
+            if r.contains(where: { $0.i_troppen != true }) {
+                HStack(spacing: 5) {
+                    Circle().fill(Farge.strek).frame(width: 7, height: 7)
+                    Text("runder vi ikke eide ham").font(.system(size: 9)).foregroundStyle(Farge.svak)
+                }
             }
         }
     }
