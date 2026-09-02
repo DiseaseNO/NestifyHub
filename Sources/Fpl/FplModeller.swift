@@ -8,7 +8,14 @@ import Observation
 struct FplStatus: Decodable {
     /// Kontraktsversjonen appen er bygget for. Er `versjon` høyere, mangler vi felter
     /// vi ikke vet om — da sier vi det heller enn å vise noe halvt.
-    static let støttetVersjon = 3
+    /// Kontraktversjonen appen er bygget for. Er dataene nyere, viser Nå-skjermen et
+    /// varsel — den slutter ikke å virke, men noe kan mangle.
+    ///
+    /// v4 (02.09.2026) bumpet fordi to formendringer var gjort under v3: de to
+    /// punktlistene ble objekter, og `kampforventning` ble nøklet om til klubbkode.
+    /// Begge var alt håndtert her da bumpen kom — `Punkt` tåler streng og objekt, og
+    /// `kampforventning` brukes ikke av appen ennå.
+    static let støttetVersjon = 4
 
     let versjon: Int
     let generert: String
@@ -87,6 +94,8 @@ struct FplStatus: Decodable {
     /// Hva som er endret siden forrige eksport. Tom liste betyr «ingenting nytt» —
     /// det er forskjellen på en app og et dokument.
     let endret: [Endring]?
+    /// De siste 40 endringene, for en tidslinje. Ikke tatt i bruk ennå.
+    let endret_historikk: [Endring]?
 
     struct Endring: Decodable, Identifiable {
         let felt: String?
