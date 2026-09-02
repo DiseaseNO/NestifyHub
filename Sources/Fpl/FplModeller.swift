@@ -24,6 +24,18 @@ struct FplStatus: Decodable {
     let aapne_risikoer: [Punkt]?
     /// Kildens korte versjon av `modell_status`. Den lange er et arbeidsnotat.
     let modell_status_sammendrag: String?
+    /// Opptelling over BEGGE listene, så appen slipper å summere selv. Bare
+    /// `maa_besvares_foer_frist` er en oppfordring — resten er tilstand.
+    let sporsmal_oversikt: Oversikt?
+
+    struct Oversikt: Decodable {
+        let maa_besvares_foer_frist: Int?
+        let venter_paa_signal: Int?
+        let staaende: Int?
+        let avgjort_for_runden: Int?
+        let frist: String?
+        let forklaring: [String: String]?
+    }
 
     /// Et åpent spørsmål eller en kjent risiko, i tre lengder: `tittel`, `sammendrag`,
     /// og hele notatet. Var rene strenger fram til 1. september 2026 — dekoderen tåler
@@ -35,6 +47,13 @@ struct FplStatus: Decodable {
         let alvor: String?
         let siden: String?
         let blokkerer: Bool?
+        /// Hvorfor punktet står åpent — `runde`, `venter_paa_signal`, `staaende`,
+        /// `avgjort_for_runden`. `blokkerer` er avledet av denne; kategorien sier mer.
+        let kategori: String?
+        /// Hva vi venter på, i klartekst. Bare for `venter_paa_signal`.
+        let venter_paa: String?
+        let frist: String?
+        let kategori_merknad: String?
 
         var id: String { (tittel ?? "") + tekst }
         /// Overskriften vi viser. Kildens tittel hvis den finnes — ellers ingenting
@@ -45,6 +64,7 @@ struct FplStatus: Decodable {
             if let bare = try? dekoder.singleValueContainer().decode(String.self) {
                 tittel = nil; sammendrag = nil; tekst = bare
                 alvor = nil; siden = nil; blokkerer = nil
+                kategori = nil; venter_paa = nil; frist = nil; kategori_merknad = nil
                 return
             }
             let c = try dekoder.container(keyedBy: Nøkler.self)
@@ -54,8 +74,15 @@ struct FplStatus: Decodable {
             alvor = try c.decodeIfPresent(String.self, forKey: .alvor)
             siden = try c.decodeIfPresent(String.self, forKey: .siden)
             blokkerer = try c.decodeIfPresent(Bool.self, forKey: .blokkerer)
+            kategori = try c.decodeIfPresent(String.self, forKey: .kategori)
+            venter_paa = try c.decodeIfPresent(String.self, forKey: .venter_paa)
+            frist = try c.decodeIfPresent(String.self, forKey: .frist)
+            kategori_merknad = try c.decodeIfPresent(String.self, forKey: .kategori_merknad)
         }
-        private enum Nøkler: String, CodingKey { case tittel, sammendrag, tekst, alvor, siden, blokkerer }
+        private enum Nøkler: String, CodingKey {
+            case tittel, sammendrag, tekst, alvor, siden, blokkerer
+            case kategori, venter_paa, frist, kategori_merknad
+        }
     }
     /// Hva som er endret siden forrige eksport. Tom liste betyr «ingenting nytt» —
     /// det er forskjellen på en app og et dokument.
