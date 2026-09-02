@@ -350,6 +350,9 @@ struct FplNaa: View {
 
     private func spillerkort(_ s: FplStatus.Spiller) -> some View {
         VStack(spacing: 2) {
+            // Drakt framfor foto på banen: den finnes for alle, er liten, og leses som
+            // lagtilhørighet uten at man må lese navnet.
+            Draktbilde(bilder: s.bilder, størrelse: 30)
             HStack(spacing: 2) {
                 if s.kaptein { Image(systemName: "c.circle.fill").font(.system(size: 9)).foregroundStyle(Diagramfarge.serie1) }
                 if s.vise { Image(systemName: "v.circle").font(.system(size: 9)).foregroundStyle(Farge.dempet) }
@@ -377,7 +380,7 @@ struct FplNaa: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
+        .padding(.vertical, 5)
         .background(Farge.kort)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .contentShape(RoundedRectangle(cornerRadius: 8))

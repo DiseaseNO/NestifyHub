@@ -193,6 +193,26 @@ struct FplStatus: Decodable {
         let dodball: Dodball?
         let kamp: Kamp?
         let forventet: Forventet?
+        /// Drakt, spillerfoto og klubblogo. URL-ene kommer fra kilden — appen bygger
+        /// ingen adresser selv.
+        let bilder: Bilder?
+
+        struct Bilder: Decodable {
+            let spiller: Spillerbilde?
+            let drakt: Drakt?
+            let klubblogo: Logo?
+
+            /// ⚠️ `finnes` er HEAD-verifisert per eksport. Ikke alle spillere har foto —
+            /// er den `false`, skal appen falle tilbake på drakta, som alltid finnes.
+            struct Spillerbilde: Decodable {
+                let liten: String?, medium: String?, stor: String?
+                let finnes: Bool?
+            }
+            /// Keepere får keeperdrakta automatisk fra kilden; appen sjekker ikke posisjon.
+            struct Drakt: Decodable { let liten: String?, stor: String?, png: String? }
+            struct Logo: Decodable { let svg: String?, png: String? }
+        }
+
         /// Hva han faktisk har levert, runde for runde. Se `FplSpiller.swift`.
         let levert: Levert?
 

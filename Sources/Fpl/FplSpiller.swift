@@ -39,6 +39,15 @@ struct FplSpillerark: View {
     // MARK: topp
 
     private var topp: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Foto når kilden har bekreftet at det finnes, ellers drakta. To spillere i
+            // troppen ga 403 den 02.09, så fallbacken er ikke teoretisk.
+            Spillerportrett(bilder: spiller.bilder)
+            detaljer
+        }
+    }
+
+    private var detaljer: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Text(spiller.posisjon).font(.caption2).foregroundStyle(Farge.svak)
@@ -50,8 +59,14 @@ struct FplSpillerark: View {
                     .foregroundStyle(Farge.dempet)
             }
             if let k = spiller.kamp {
-                Text("\(k.hjemme ? "Hjemme mot" : "Borte mot") \(k.mot) · vanskegrad \(k.vansker)")
-                    .font(.caption).foregroundStyle(Farge.dempet)
+                // Klubbmerket hører til kampinfo, ikke til navnet — to merker på samme
+                // kort konkurrerer om det samme blikket.
+                HStack(spacing: 5) {
+                    Klubbmerke(bilder: spiller.bilder)
+                    Text("\(k.hjemme ? "Hjemme mot" : "Borte mot") \(k.mot) · vanskegrad \(k.vansker)")
+                        .font(.caption).foregroundStyle(Farge.dempet)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             // xP: egen modell er underkjent, så vi viser den uavhengige kilden.
             if let f = spiller.forventet, let x = f.xp_fplform {
