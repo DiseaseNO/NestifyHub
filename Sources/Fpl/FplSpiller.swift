@@ -95,34 +95,80 @@ struct FplSpillerark: View {
 
     // MARK: poeng
 
-    /// Sparkline: sekvensen, uten akser. Formen er poenget, ikke avlesningen — tallene
-    /// står i tabellen under.
+    /// Poeng mot forventning, runde for runde.
+    ///
+    /// To serier i samme diagram fordi spørsmålet er sammenligningen: 2 poeng der vi
+    /// ventet 2 er noe helt annet enn 2 der vi ventet 8. Fargene er seriefargene —
+    /// slot 1 er det som skjedde, slot 2 er det vi trodde.
+    ///
+    /// Aksene er påskrevet. Speccen foreslo en sparkline uten akser, men da må leseren
+    /// gjette hva høyden betyr, og med to serier er det én gjetning for mye.
     private func poengforløp(_ r: [FplStatus.Spiller.Levert.Runde]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("POENG PER RUNDE").font(.system(size: 9, weight: .semibold))
+        let forventede = r.filter { $0.forventet_xp != nil }
+        let manglerEid = r.contains { $0.i_troppen != true }
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("POENG MOT FORVENTNING").font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(Farge.dempet)
+
+            // Egen legende framfor Charts' automatiske: da kan prikkene også bære
+            // eierskap uten at det havner i en andre legende.
+            HStack(spacing: 14) {
+                legendeprikk(Diagramfarge.serie1, "Poeng")
+                legendeprikk(Diagramfarge.serie2, "Forventet")
+                if manglerEid { legendeprikk(Diagramfarge.serie1.opacity(0.3), "ikke eid") }
+                Spacer()
+            }
+
             Chart {
                 ForEach(r) { x in
-                    LineMark(x: .value("Runde", x.runde), y: .value("Poeng", x.poeng ?? 0))
+                    LineMark(x: .value("Runde", x.runde),
+                             y: .value("Poeng", x.poeng ?? 0),
+                             series: .value("Serie", "faktisk"))
                         .foregroundStyle(Diagramfarge.serie1)
                         .interpolationMethod(.monotone)
                     PointMark(x: .value("Runde", x.runde), y: .value("Poeng", x.poeng ?? 0))
-                        // Hul prikk for runder vi ikke eide ham: han leverte, men ikke for oss.
-                        .foregroundStyle(x.i_troppen == true ? Diagramfarge.serie1 : Farge.strek)
+                        // Blass prikk der vi ikke eide ham: han leverte, men ikke for oss.
+                        .foregroundStyle(x.i_troppen == true ? Diagramfarge.serie1
+                                                             : Diagramfarge.serie1.opacity(0.3))
                         .symbolSize(70)
                 }
-            }
-            .chartXAxis(.hidden)
-            .chartYAxis(.hidden)
-            .frame(height: max(40, CGFloat(min(r.count, 10)) * 12))
-            // Legenden bare når den forklarer noe: eide vi ham hele veien, finnes det
-            // ingen hule prikker å forklare.
-            if r.contains(where: { $0.i_troppen != true }) {
-                HStack(spacing: 5) {
-                    Circle().fill(Farge.strek).frame(width: 7, height: 7)
-                    Text("runder vi ikke eide ham").font(.system(size: 9)).foregroundStyle(Farge.svak)
+                ForEach(forventede) { x in
+                    LineMark(x: .value("Runde", x.runde),
+                             y: .value("Poeng", x.forventet_xp ?? 0),
+                             series: .value("Serie", "forventet"))
+                        .foregroundStyle(Diagramfarge.serie2)
+                        .lineStyle(.init(lineWidth: 1.5, dash: [4, 3]))
+                        .interpolationMethod(.monotone)
+                    PointMark(x: .value("Runde", x.runde), y: .value("Poeng", x.forventet_xp ?? 0))
+                        .foregroundStyle(Diagramfarge.serie2)
+                        .symbol(.square).symbolSize(50)
                 }
             }
+            .chartXAxisLabel("Runde", alignment: .center)
+            .chartYAxisLabel("Poeng", alignment: .center)
+            .chartXAxis { AxisMarks(values: r.map(\.runde)) { v in
+                AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.svak)
+                AxisGridLine().foregroundStyle(Farge.strek.opacity(0.5))
+            } }
+            .chartYAxis { AxisMarks { _ in
+                AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.svak)
+                AxisGridLine().foregroundStyle(Farge.strek.opacity(0.5))
+            } }
+            .frame(height: 150)
+
+            if forventede.isEmpty {
+                Text("Forventningen mangler for disse rundene — arkivet startet "
+                     + "2. september, så det finnes ingen bevart xP å sammenligne med.")
+                    .font(.system(size: 10)).foregroundStyle(Farge.svak)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func legendeprikk(_ farge: Color, _ tekst: String) -> some View {
+        HStack(spacing: 5) {
+            Circle().fill(farge).frame(width: 8, height: 8)
+            Text(tekst).font(.system(size: 10)).foregroundStyle(Farge.dempet)
         }
     }
 
@@ -155,8 +201,13 @@ struct FplSpillerark: View {
                             .foregroundStyle((x.avvik ?? 0) >= 0 ? Diagramfarge.god : Diagramfarge.alvorlig)
                     }
                 }
-                .chartYAxis(.hidden)
-                .frame(height: 80)
+                .chartXAxisLabel("Runde", alignment: .center)
+                .chartYAxisLabel("Avvik i poeng", alignment: .center)
+                .chartYAxis { AxisMarks { _ in
+                    AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.svak)
+                    AxisGridLine().foregroundStyle(Farge.strek.opacity(0.5))
+                } }
+                .frame(height: 110)
                 HStack(spacing: 6) {
                     // Snittet bare når det hviler på mer enn én runde.
                     if let s = l.avvik_snitt, let d = l.dekning, d.av > 1 {
