@@ -327,24 +327,44 @@ struct FplNaa: View {
 
     /// Troppen som banehalvdel. Folk leser lag som lag — en tabell her ville tvunget
     /// leseren til å bygge oppstillingen i hodet.
+    /// Laget satt opp som en formasjon.
+    ///
+    /// Radene hadde før én `HStack` hver med `maxWidth: .infinity` per kort — da ble
+    /// keeperen alene like bred som fire midtbanespillere til sammen, og troppen så
+    /// hulter til bulter ut. Nå er kortbredden den samme overalt (`containerRelativeFrame`
+    /// over det bredeste antallet), og korte rader midtstilles.
     private func tropp(_ d: FplStatus) -> some View {
         let xi = d.tropp.filter(\.i_xi).sorted { $0.plass < $1.plass }
         let benk = d.tropp.filter { !$0.i_xi }.sorted { $0.plass < $1.plass }
-        return VStack(alignment: .leading, spacing: 12) {
+        let rader = ["GK", "DEF", "MID", "FWD"].map { pos in xi.filter { $0.posisjon == pos } }
+            .filter { !$0.isEmpty }
+        // Bredeste rad bestemmer kortbredden for ALLE rader, benken inkludert.
+        let spor = max(rader.map(\.count).max() ?? 1, benk.count, 1)
+
+        return VStack(alignment: .leading, spacing: 14) {
             Text("STARTELLEVER").font(.caption2.weight(.semibold)).foregroundStyle(Farge.dempet)
-            ForEach(["GK", "DEF", "MID", "FWD"], id: \.self) { pos in
-                let rad = xi.filter { $0.posisjon == pos }
-                if !rad.isEmpty {
-                    HStack(spacing: 6) { ForEach(rad) { spillerkort($0) } }
-                }
+            ForEach(Array(rader.enumerated()), id: \.offset) { _, rad in
+                formasjonsrad(rad, spor: spor)
             }
             Text("BENK — i autosub-rekkefølge").font(.caption2.weight(.semibold))
-                .foregroundStyle(Farge.dempet).padding(.top, 4)
+                .foregroundStyle(Farge.dempet).padding(.top, 6)
             Text("Plass 12 er alltid reservekeeper. Hoppes en spiller over fordi han spilte "
                  + "0 minutter, faller køen gjennom gratis.")
                 .font(.caption2).foregroundStyle(Farge.svak)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 6) { ForEach(benk) { spillerkort($0) } }
+            formasjonsrad(benk, spor: spor)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func formasjonsrad(_ rad: [FplStatus.Spiller], spor: Int) -> some View {
+        HStack(spacing: 6) {
+            Spacer(minLength: 0)
+            ForEach(rad) { s in
+                spillerkort(s)
+                    .containerRelativeFrame(.horizontal, count: spor, span: 1, spacing: 6)
+            }
+            Spacer(minLength: 0)
         }
     }
 
@@ -352,7 +372,7 @@ struct FplNaa: View {
         VStack(spacing: 2) {
             // Drakt framfor foto på banen: den finnes for alle, er liten, og leses som
             // lagtilhørighet uten at man må lese navnet.
-            Draktbilde(bilder: s.bilder, størrelse: 30)
+            Draktbilde(bilder: s.bilder, størrelse: 44)
             HStack(spacing: 2) {
                 if s.kaptein { Image(systemName: "c.circle.fill").font(.system(size: 9)).foregroundStyle(Diagramfarge.serie1) }
                 if s.vise { Image(systemName: "v.circle").font(.system(size: 9)).foregroundStyle(Farge.dempet) }
@@ -379,11 +399,13 @@ struct FplNaa: View {
                     .font(.system(size: 9).monospacedDigit()).foregroundStyle(Diagramfarge.serie1)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 5)
+        // Fast høyde: uten den blir kortene ulike alt etter om spilleprosent finnes,
+        // og radene slutter å flukte.
+        .frame(maxWidth: .infinity, minHeight: 118, alignment: .top)
+        .padding(.vertical, 6)
         .background(Farge.kort)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .contentShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture { visSpiller = s }
     }
 
