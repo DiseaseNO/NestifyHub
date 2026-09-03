@@ -190,6 +190,13 @@ struct FplNaa: View {
 
     // MARK: alder
 
+    private func klokkeslett(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "nb_NO")
+        f.dateFormat = "HH:mm"
+        return f.string(from: d)
+    }
+
     private func dataAlder(_ s: FplSvar) -> some View {
         let alder = TimeInterval(s.kilde.data_alder_sek ?? 0)
         let gammelt = alder > 3 * 3600
@@ -202,7 +209,9 @@ struct FplNaa: View {
             Text("Tallene er \(varighet(alder)) gamle")
                 .font(.caption)
             if let n = lager.sistSjekket {
-                Text("· sjekket \(n.formatted(date: .omitted, time: .shortened))")
+                // `formatted()` bruker SYSTEMets locale, ikke `.environment(\.locale)` —
+                // uten dette sto det «7:20 PM» midt i en norsk skjerm.
+                Text("· sjekket \(klokkeslett(n))")
                     .font(.caption2).foregroundStyle(Farge.svak)
             }
             if let f = s.kilde.feil {
