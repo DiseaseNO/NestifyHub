@@ -6,6 +6,7 @@ import SwiftUI
 /// «virker maskineriet?» uten at man må lete i logger.
 struct FplHelse: View {
     let lager: FplLager
+    @Environment(\.scenePhase) private var scenefase
 
     var body: some View {
         ScrollView {
@@ -35,6 +36,9 @@ struct FplHelse: View {
         // Lageret deles med «Nå», men Helse kan være det første man ser (dyplenke, eller
         // fanen man forlot appen på). Uten dette ble den stående på spinneren for alltid.
         .task { if lager.svar == nil { await lager.last() } }
+        .onChange(of: scenefase) { _, ny in
+            if ny == .active { Task { await lager.last() } }
+        }
     }
 
     // MARK: kilder

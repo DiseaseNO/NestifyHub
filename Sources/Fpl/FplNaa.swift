@@ -17,6 +17,7 @@ struct FplNaa: View {
     @State private var visSpiller: FplStatus.Spiller?
     /// Målt bredde på troppseksjonen, så alle kort får samme faste bredde.
     @State private var radbredde: CGFloat = 0
+    @Environment(\.scenePhase) private var scenefase
 
     /// Arket trenger noe Identifiable å henge på; en `[String]` er det ikke.
     struct Spørsmål: Identifiable {
@@ -65,6 +66,11 @@ struct FplNaa: View {
         .toolbarBackground(Farge.flate, for: .navigationBar)
         .onReceive(takt) { nå = $0 }
         .task { await lager.følg() }
+        // Løkka sover i opptil en halvtime når fristen er langt unna. Uten dette møtte
+        // man de gamle tallene når appen ble hentet fram igjen, helt til søvnen løp ut.
+        .onChange(of: scenefase) { _, ny in
+            if ny == .active { Task { await lager.last() } }
+        }
         .onChange(of: lager.svar == nil) { _, tomt in
             // Bare i CI: åpne detaljene automatisk så skjermbildet dekker dem.
             if !tomt, Testskjerm.spillerdetalj, visSpiller == nil {
