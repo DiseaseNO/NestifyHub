@@ -15,6 +15,8 @@ struct FplNaa: View {
     @State private var visOpphav: Opphav?
     @State private var visSporsmal: Spørsmål?
     @State private var visSpiller: FplStatus.Spiller?
+    /// Målt bredde på troppseksjonen, så alle kort får samme faste bredde.
+    @State private var radbredde: CGFloat = 0
 
     /// Arket trenger noe Identifiable å henge på; en `[String]` er det ikke.
     struct Spørsmål: Identifiable {
@@ -331,8 +333,12 @@ struct FplNaa: View {
     ///
     /// Radene hadde før én `HStack` hver med `maxWidth: .infinity` per kort — da ble
     /// keeperen alene like bred som fire midtbanespillere til sammen, og troppen så
-    /// hulter til bulter ut. Nå er kortbredden den samme overalt (`containerRelativeFrame`
-    /// over det bredeste antallet), og korte rader midtstilles.
+    /// hulter til bulter ut. Nå har alle kort samme faste bredde, og korte rader
+    /// midtstilles av spacere.
+    ///
+    /// Bredden måles med en `GeometryReader` framfor `containerRelativeFrame`: den siste
+    /// hang i layout, og hele Nå-skjermen ble stående på spinneren fordi hovedtråden
+    /// aldri kom videre. Symptomet så ut som en datafeil, og var det ikke.
     private func tropp(_ d: FplStatus) -> some View {
         let xi = d.tropp.filter(\.i_xi).sorted { $0.plass < $1.plass }
         let benk = d.tropp.filter { !$0.i_xi }.sorted { $0.plass < $1.plass }
@@ -355,6 +361,20 @@ struct FplNaa: View {
             formasjonsrad(benk, spor: spor)
         }
         .frame(maxWidth: .infinity)
+        .background(
+            GeometryReader { g in
+                Color.clear.preference(key: Radbredde.self, value: g.size.width)
+            }
+        )
+        .onPreferenceChange(Radbredde.self) { radbredde = $0 }
+    }
+
+    /// Kortbredde ut fra målt tilgjengelig bredde. Er den ikke målt ennå, faller vi
+    /// tilbake på en rimelig verdi, så skjermen aldri står tom mens den måler.
+    private func kortbredde(_ spor: Int) -> CGFloat {
+        let mellomrom: CGFloat = 6
+        let tilgjengelig = radbredde > 0 ? radbredde : 340
+        return max(60, (tilgjengelig - mellomrom * CGFloat(spor - 1)) / CGFloat(spor))
     }
 
     private func formasjonsrad(_ rad: [FplStatus.Spiller], spor: Int) -> some View {
@@ -362,7 +382,7 @@ struct FplNaa: View {
             Spacer(minLength: 0)
             ForEach(rad) { s in
                 spillerkort(s)
-                    .containerRelativeFrame(.horizontal, count: spor, span: 1, spacing: 6)
+                    .frame(width: kortbredde(spor))
             }
             Spacer(minLength: 0)
         }
@@ -515,5 +535,13 @@ struct FplNaa: View {
                 .font(.caption2).tint(Farge.svak)
             }
         }
+    }
+}
+
+/// Bredden på troppseksjonen, målt én gang og delt med alle radene.
+private struct Radbredde: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
