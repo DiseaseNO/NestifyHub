@@ -436,7 +436,9 @@ struct FplNaa: View {
         //
         // 130 er plass til alle seks linjene: drakt 44, navn, klubb, kamp, spilleprosent,
         // xP, pluss luft.
-        .frame(maxWidth: .infinity, height: 130, alignment: .top)
+        // `maxWidth` og `height` kan ikke stå i samme kall — høyden låses med
+        // min og maks like store.
+        .frame(maxWidth: .infinity, minHeight: 130, maxHeight: 130, alignment: .top)
         .padding(.vertical, 6)
         .background(Farge.kort)
         .clipShape(RoundedRectangle(cornerRadius: 10))
