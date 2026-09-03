@@ -430,9 +430,13 @@ struct FplNaa: View {
                     .font(.system(size: 9).monospacedDigit()).foregroundStyle(Diagramfarge.serie1)
             }
         }
-        // Fast høyde: uten den blir kortene ulike alt etter om spilleprosent finnes,
-        // og radene slutter å flukte.
-        .frame(maxWidth: .infinity, minHeight: 118, alignment: .top)
+        // FAST høyde, ikke minimum. Med `minHeight` vokste kortene til spillere som har
+        // en linje ekstra — spilleprosent vises bare for de skadetvilsomme — og da sto
+        // Anderson og Kadıoğlu og stakk ut av rekka si.
+        //
+        // 130 er plass til alle seks linjene: drakt 44, navn, klubb, kamp, spilleprosent,
+        // xP, pluss luft.
+        .frame(maxWidth: .infinity, height: 130, alignment: .top)
         .padding(.vertical, 6)
         .background(Farge.kort)
         .clipShape(RoundedRectangle(cornerRadius: 10))
