@@ -324,6 +324,10 @@ final class FplLager {
     private(set) var svar: FplSvar?
     private(set) var feil: String?
     private(set) var henter = false
+    /// Når vi sist snakket med serveren — uavhengig av hvor gamle tallene fra kilden er.
+    private(set) var sistSjekket: Date?
+    /// Hentingen som pågår, så et nedtrekk venter på den framfor å gjøre ingenting.
+    private var pågående: Task<Void, Never>?
 
     private let api: API
     init(api: API) { self.api = api }
@@ -344,10 +348,22 @@ final class FplLager {
         svar.map { TimeInterval($0.kilde.data_alder_sek ?? 0) }
     }
 
+    /// Henter statusen.
+    ///
+    /// Er en henting allerede i gang, **venter** vi på den framfor å returnere med én
+    /// gang. Før gjorde et nedtrekk ingenting hvis bakgrunnsløkka tilfeldigvis holdt på,
+    /// og da så det ut som at nedtrekket ikke virket.
     func last() async {
-        guard !henter else { return }
+        if let p = pågående { await p.value; return }
+        let t = Task { await hentNå() }
+        pågående = t
+        await t.value
+        pågående = nil
+    }
+
+    private func hentNå() async {
         henter = true
-        defer { henter = false }
+        defer { henter = false; sistSjekket = Date() }
         do {
             let nytt = try await api.hent(FplSvar.self, "/api/fpl/status")
             // Ordboka følger dataene. Kommer den ikke, står appen uten forklaringer —

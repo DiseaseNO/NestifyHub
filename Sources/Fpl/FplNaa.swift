@@ -196,8 +196,15 @@ struct FplNaa: View {
         return HStack(spacing: 6) {
             Image(systemName: gammelt ? "exclamationmark.circle.fill" : "clock")
                 .font(.caption2)
+            // To ulike ting, og de ble blandet: hvor gamle KILDENS tall er, og når VI
+            // sist snakket med serveren. Et nedtrekk endrer den siste, ikke den første —
+            // uten begge så det ut som ingenting skjedde når man dro ned.
             Text("Tallene er \(varighet(alder)) gamle")
                 .font(.caption)
+            if let n = lager.sistSjekket {
+                Text("· sjekket \(n.formatted(date: .omitted, time: .shortened))")
+                    .font(.caption2).foregroundStyle(Farge.svak)
+            }
             if let f = s.kilde.feil {
                 Text("· henting feilet").font(.caption).foregroundStyle(Diagramfarge.kritisk)
                     .help(f)
