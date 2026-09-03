@@ -75,6 +75,15 @@ enum Testskjerm {
         #endif
     }
 
+    /// Ruller ned til troppen, som ellers ligger under folden i skjermbildene.
+    static var tilTropp: Bool {
+        #if DEBUG
+        UserDefaults.standard.bool(forKey: "tropp")
+        #else
+        false
+        #endif
+    }
+
     static var valgt: Int? {
         #if DEBUG
         switch UserDefaults.standard.string(forKey: "skjerm") {

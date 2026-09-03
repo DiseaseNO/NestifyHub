@@ -37,6 +37,7 @@ struct FplNaa: View {
     private let takt = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
+        ScrollViewReader { rull in
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 if let s = lager.svar {
@@ -78,6 +79,15 @@ struct FplNaa: View {
         .sheet(item: $visOpphav) { o in opphavsark(o) }
         .sheet(item: $visSporsmal) { sp in sporsmaalsark(sp) }
         .sheet(item: $visSpiller) { FplSpillerark(spiller: $0) }
+        // Bare i CI: rull til troppen, som ellers ligger under folden i skjermbildet.
+        .onChange(of: lager.svar == nil) { _, tomt in
+            if !tomt, Testskjerm.tilTropp {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    withAnimation(.none) { rull.scrollTo("tropp", anchor: .top) }
+                }
+            }
+        }
+        }
     }
 
     /// Nødløsning til kilden sender `sammendrag`: anbefalingen som én setning, satt
@@ -349,6 +359,7 @@ struct FplNaa: View {
 
         return VStack(alignment: .leading, spacing: 14) {
             Text("STARTELLEVER").font(.caption2.weight(.semibold)).foregroundStyle(Farge.dempet)
+                .id("tropp")
             ForEach(Array(rader.enumerated()), id: \.offset) { _, rad in
                 formasjonsrad(rad, spor: spor)
             }
