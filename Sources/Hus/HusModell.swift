@@ -43,6 +43,14 @@ struct Husstatus: Decodable {
     let lys_paa: Int
     let kr_per_kwh: Double?
     let scener: Scener?
+    /// Null hvis magnetkontakten ikke svarer. Da vet vi ikke om porten er åpen, og
+    /// kortet sier det i stedet for å gjette «lukket».
+    let garasje: Garasje?
+
+    struct Garasje: Decodable {
+        let aapen: Bool
+        let endret: String?
+    }
 
     struct Scener: Decodable {
         let godNattAv: [String]
@@ -61,4 +69,24 @@ struct Husstatus: Decodable {
         let klima: String?
         var id: String { navn }
     }
+}
+
+
+/// En entitet et multikort kan vise — lys, bryter eller varme.
+///
+/// Backend har allerede silt bort det HA regner som konfigurasjon («Child lock»,
+/// «Frost guard»), så alt i denne lista er noe i huset man faktisk kan røre.
+struct Husentitet: Decodable, Identifiable {
+    let id: String
+    let navn: String
+    let domene: String
+    /// Rommet entiteten hører til i husmodellen, eller null hvis den ikke er plassert.
+    let rom: String?
+    let paa: Bool
+    /// Klima: hva den gjør nå (`heating`, `idle`, …). Null for lys og brytere.
+    let handling: String?
+    /// Målt temperatur der termostaten står.
+    let temp: Double?
+    /// Temperaturen den styrer mot.
+    let maal: Double?
 }
