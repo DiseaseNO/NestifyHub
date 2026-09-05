@@ -82,6 +82,12 @@ struct Husentitet: Decodable, Identifiable {
     /// Rommet entiteten hører til i husmodellen, eller null hvis den ikke er plassert.
     let rom: String?
     let paa: Bool
+    /// Lysstyrke i prosent. Null betyr «kan ikke dimmes» eller «står av» — en dimmer
+    /// som er slukket rapporterer ingen verdi.
+    let lysstyrke: Int?
+    /// Om lyset faktisk kan dimmes. En av/på-pære med en dimmer som ikke gjør noe er
+    /// verre enn ingen dimmer, så vi spør før vi tegner den.
+    let dimbar: Bool
     /// Klima: hva den gjør nå (`heating`, `idle`, …). Null for lys og brytere.
     let handling: String?
     /// Målt temperatur der termostaten står.
