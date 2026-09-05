@@ -1,4 +1,5 @@
 import SwiftUI
+import WidgetKit
 
 /// «Huset» — smarthus-dashbordet i appen.
 ///
@@ -198,7 +199,13 @@ struct HusModul: View {
             // som om noe er slettet.
             if let e = try? await api.hent([Husentitet].self, "/api/hus/entiteter") { entiteter = e }
             Delt.lagre(.init(effektWatt: s.effekt_watt, lysPaa: s.lys_paa,
-                             kroner: s.kr_per_kwh, oppdatert: Date()))
+                             kroner: s.kr_per_kwh, oppdatert: Date(),
+                             rom: s.rom.map { .init(navn: $0.navn, lysPaa: $0.lys_paa,
+                                                    lysTotalt: $0.lys_totalt,
+                                                    temp: $0.temp, klima: $0.klima) },
+                             garasjeAapen: s.garasje?.aapen))
+            // Widgeten er en egen prosess og oppdager ikke av seg selv at fila er ny.
+            WidgetCenter.shared.reloadAllTimelines()
         } catch { feil = error.localizedDescription }
     }
 

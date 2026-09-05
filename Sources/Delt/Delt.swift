@@ -22,8 +22,15 @@ enum Delt {
 
     private static var fil: URL? { mappe?.appendingPathComponent("husbilde.json") }
 
-    /// Det widgeten viser. Med vilje lite: en widget som må vente på mye data,
-    /// rekker ikke å tegne seg før systemet gir opp.
+    /// Det widgeten kan vise.
+    ///
+    /// Fortsatt lite — en widget som må vente på mye data rekker ikke å tegne seg før
+    /// systemet gir opp. Men rommene må være med: brukeren velger selv hva widgeten
+    /// viser, og valget kan ikke begrenses til det appen tilfeldigvis la igjen sist.
+    ///
+    /// Alle nye felter har standardverdi. Widgeten kan lese et bilde skrevet av en eldre
+    /// app-versjon — de to oppdateres ikke samtidig — og skal da mangle et rom, ikke
+    /// feile helt.
     struct Husbilde: Codable {
         var effektWatt: Int?
         var lysPaa: Int
@@ -31,6 +38,19 @@ enum Delt {
         var oppdatert: Date
         /// Satt når appen ikke er paret ennå — da skal widgeten si det, ikke vise nuller.
         var uparet: Bool = false
+        var rom: [Rom] = []
+        /// Null når magnetkontakten ikke svarer. Da vet vi ikke, og sier det.
+        var garasjeAapen: Bool?
+
+        struct Rom: Codable, Identifiable {
+            var navn: String
+            var lysPaa: Int
+            var lysTotalt: Int
+            var temp: Double?
+            /// `varmer`, `kjoler` eller `av`.
+            var klima: String?
+            var id: String { navn }
+        }
     }
 
     static func lagre(_ b: Husbilde) {
