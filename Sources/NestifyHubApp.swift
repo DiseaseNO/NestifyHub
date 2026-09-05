@@ -100,8 +100,14 @@ enum Testskjerm {
 }
 
 /// Modulvelgeren.
+///
+/// Bygges av modulregisteret og brukerens eget oppsett — ikke av en håndskrevet liste.
+/// Da kan moduler flyttes og skjules uten at denne skjermen endres, og en ny modul
+/// dukker opp av seg selv.
 struct Hovedvisning: View {
     let api: API
+    @State private var oppsett = Oppsett()
+    @State private var visOppsett = false
 
     var body: some View {
         NavigationStack {
@@ -109,14 +115,22 @@ struct Hovedvisning: View {
                 Farge.flate.ignoresSafeArea()
                 List {
                     Section {
-                        NavigationLink { FplModul(api: api) } label: {
-                            modul("Fantasy", "sportscourt", "anbefaling, tropp og helse")
-                        }
-                        NavigationLink { HusModul(api: api) } label: {
-                            modul("Huset", "house", "lys, varme og forbruk")
+                        ForEach(oppsett.synlige) { m in
+                            NavigationLink { m.visning(api) } label: {
+                                modul(m.navn, m.ikon, m.undertekst)
+                            }
                         }
                     } header: {
                         Text("Moduler").font(.caption).foregroundStyle(Farge.dempet)
+                    }
+
+                    if oppsett.synlige.isEmpty {
+                        // Alt er skrudd av. Uten denne ser appen ødelagt ut, og veien
+                        // tilbake er ikke åpenbar.
+                        Text("Ingen moduler er slått på. Trykk på menyen øverst til høyre "
+                             + "og velg hva du vil ha med.")
+                            .font(.footnote).foregroundStyle(Farge.svak)
+                            .listRowBackground(Farge.kort)
                     }
                 }
                 .listStyle(.insetGrouped)
@@ -128,12 +142,16 @@ struct Hovedvisning: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button { visOppsett = true } label: {
+                            Label("Sett opp appen", systemImage: "slider.horizontal.3")
+                        }
                         Button(role: .destructive) { api.glemEnhet() } label: {
                             Label("Glem denne enheten", systemImage: "xmark.circle")
                         }
                     } label: { Image(systemName: "ellipsis.circle") }
                 }
             }
+            .sheet(isPresented: $visOppsett) { Oppsettvisning(oppsett: oppsett) }
         }
     }
 
