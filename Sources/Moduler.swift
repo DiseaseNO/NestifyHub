@@ -36,16 +36,23 @@ struct Modul: Identifiable {
 /// finner dem i innstillingene — betyr at en modul kan bli levert og aldri sett.
 @Observable
 final class Oppsett {
-    private static let nøkkel = "modulrekkefølge"
-    private static let skjultNøkkel = "skjultemoduler"
+    /// Hva slags liste dette oppsettet gjelder. Samme mekanikk brukes to steder —
+    /// modulene på hjemskjermen og kortene inne i Huset — og de må ikke dele nøkler.
+    let område: String
+    private var nøkkel: String { "\(område).rekkefølge" }
+    private var skjultNøkkel: String { "\(område).skjult" }
     private let lager = UserDefaults(suiteName: Delt.gruppe) ?? .standard
+    private let standard: [String]
 
     private(set) var rekkefølge: [String]
     private(set) var skjult: Set<String>
 
-    init() {
-        rekkefølge = lager.stringArray(forKey: Self.nøkkel) ?? Modul.alle().map(\.id)
-        skjult = Set(lager.stringArray(forKey: Self.skjultNøkkel) ?? [])
+    init(område: String = "moduler", standard: [String] = Modul.alle().map(\.id)) {
+        self.område = område
+        self.standard = standard
+        let l = UserDefaults(suiteName: Delt.gruppe) ?? .standard
+        rekkefølge = l.stringArray(forKey: "\(område).rekkefølge") ?? standard
+        skjult = Set(l.stringArray(forKey: "\(område).skjult") ?? [])
     }
 
     /// Modulene i brukerens rekkefølge. Ukjente id-er i lageret ignoreres — de kan være
@@ -65,22 +72,40 @@ final class Oppsett {
         var ids = sortert.map(\.id)
         ids.move(fromOffsets: fra, toOffset: til)
         rekkefølge = ids
-        lager.set(ids, forKey: Self.nøkkel)
+        lager.set(ids, forKey: nøkkel)
     }
 
     func settSynlig(_ id: String, _ på: Bool) {
         if på { skjult.remove(id) } else { skjult.insert(id) }
-        lager.set(Array(skjult), forKey: Self.skjultNøkkel)
+        lager.set(Array(skjult), forKey: skjultNøkkel)
         // Rekkefølgen skrives også, så en modul som skjules og vises igjen havner der
         // den lå — ikke nederst som en ny.
         rekkefølge = sortert.map(\.id)
-        lager.set(rekkefølge, forKey: Self.nøkkel)
+        lager.set(rekkefølge, forKey: nøkkel)
+    }
+
+    /// Generell utgave: sorterer hvilke som helst id-er etter brukerens rekkefølge, og
+    /// legger ukjente sist. Brukes av kortene inne i Huset.
+    func ordne(_ ids: [String]) -> [String] {
+        let kjent = rekkefølge.filter { ids.contains($0) }
+        return kjent + ids.filter { !rekkefølge.contains($0) }
+    }
+
+    func synlige(av ids: [String]) -> [String] {
+        ordne(ids).filter { !skjult.contains($0) }
+    }
+
+    func flyttIds(_ ids: [String], fra: IndexSet, til: Int) {
+        var l = ordne(ids)
+        l.move(fromOffsets: fra, toOffset: til)
+        rekkefølge = l
+        lager.set(l, forKey: nøkkel)
     }
 
     func nullstill() {
-        rekkefølge = Modul.alle().map(\.id)
+        rekkefølge = standard
         skjult = []
-        lager.removeObject(forKey: Self.nøkkel)
-        lager.removeObject(forKey: Self.skjultNøkkel)
+        lager.removeObject(forKey: nøkkel)
+        lager.removeObject(forKey: skjultNøkkel)
     }
 }

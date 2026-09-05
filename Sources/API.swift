@@ -84,6 +84,25 @@ final class API {
         try await kall(type, sti, q, metode: "POST")
     }
 
+    /// POST med JSON-kropp. Brukes til husstyring, der serveren trenger å vite HVA som
+    /// skal gjøres — ikke bare at noe skal skje.
+    ///
+    /// Svaret leses ikke: backend svarer `{ok:true}` eller en feilkode, og koden er det
+    /// vi bryr oss om. En tom kropp fra serveren skal ikke bli en dekodingsfeil.
+    func send(_ sti: String, _ kropp: [String: Any]) async throws {
+        guard let token, let u = adresse(sti) else { throw APIFeil.ingenServer }
+        var rq = URLRequest(url: u)
+        rq.httpMethod = "POST"
+        rq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        rq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        rq.httpBody = try JSONSerialization.data(withJSONObject: kropp)
+        rq.timeoutInterval = 20
+        let (_, svar) = try await URLSession.shared.data(for: rq)
+        guard let h = svar as? HTTPURLResponse else { throw APIFeil.nettverk("Uventet svar") }
+        if h.statusCode == 401 { throw APIFeil.ikkeAutorisert }
+        guard (200..<300).contains(h.statusCode) else { throw APIFeil.kode(h.statusCode) }
+    }
+
     private func kall<T: Decodable>(_ type: T.Type, _ sti: String, _ q: [String: String], metode: String) async throws -> T {
         guard let token, let u = adresse(sti, q) else { throw APIFeil.ingenServer }
         var rq = URLRequest(url: u)

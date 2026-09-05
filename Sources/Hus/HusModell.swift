@@ -41,6 +41,15 @@ struct Husstatus: Decodable {
     let rom: [Romstatus]
     let effekt_watt: Int?
     let lys_paa: Int
+    let kr_per_kwh: Double?
+    let scener: Scener?
+
+    struct Scener: Decodable {
+        let godNattAv: [String]
+        let godNattDempes: Dempes
+        let alt1etgAv: String
+        struct Dempes: Decodable { let entity_id: String; let brightness: Int }
+    }
 
     struct Romstatus: Decodable, Identifiable {
         let navn: String

@@ -1,26 +1,40 @@
 import SwiftUI
 
-/// «Hus» — lys, varme og forbruk, rom for rom.
+/// «Huset» — smarthus-dashbordet i appen.
 ///
-/// Leser husmodellen og statusen fra backend. Appen regner ikke ut noe selv; den viser
-/// hva serveren sier, av samme grunn som nettbrettet gjør det: to klienter som regner
-/// hver for seg, kommer fram til forskjellige svar.
+/// Bygget av **kort** som brukeren selv velger og ordner, på samme måte som modulene på
+/// hjemskjermen. Ett rom er ett kort; scener og strøm er egne kort. Den som bare bryr
+/// seg om varmen, skrur av resten.
 ///
-/// Enhetsrollen `hjemme` har foreløpig bare lesetilgang, så dette er en oversikt — ikke
-/// en fjernkontroll. Styring krever en skrivesti, og den skal bestilles bevisst.
+/// Appen regner ikke ut noe selv — den viser hva serveren sier, og sender kommandoer
+/// tilbake gjennom `/api/hus/styr`. Tjenestene siles i backend; garasjeport og låser er
+/// ikke blant dem.
 struct HusModul: View {
     let api: API
     @State private var status: Husstatus?
+    @State private var modell: Husmodell?
     @State private var feil: String?
+    @State private var jobber: Set<String> = []
+    @State private var visOppsett = false
+    @State private var oppsett = Oppsett(område: "huskort", standard: ["strom", "scener"])
     @Environment(\.scenePhase) private var scenefase
+
+    /// Kort-id-ene i visningsrekkefølge. Rommene kommer fra serveren, så lista er ikke
+    /// hardkodet — nye rom dukker opp av seg selv.
+    private func kortIder(_ s: Husstatus) -> [String] {
+        oppsett.synlige(av: ["strom", "scener"] + s.rom.map { "rom:" + $0.navn })
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 12) {
                     if let s = status {
-                        topp(s)
-                        ForEach(s.rom) { romrad($0) }
+                        ForEach(kortIder(s), id: \.self) { id in kort(id, s) }
+                        if kortIder(s).isEmpty {
+                            Text("Ingen kort er slått på. Trykk på oppsett øverst til høyre.")
+                                .font(.footnote).foregroundStyle(Farge.svak)
+                        }
                     } else if let feil {
                         Label(feil, systemImage: "exclamationmark.triangle")
                             .font(.footnote).foregroundStyle(Farge.avvik)
@@ -35,69 +49,227 @@ struct HusModul: View {
             .navigationTitle("Huset")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Farge.flate, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { visOppsett = true } label: { Image(systemName: "slider.horizontal.3") }
+                }
+            }
+            .sheet(isPresented: $visOppsett) {
+                if let s = status {
+                    Kortoppsett(oppsett: oppsett, kort: ["strom", "scener"] + s.rom.map { "rom:" + $0.navn })
+                }
+            }
             .refreshable { await hent() }
             .task { await hent() }
             .onChange(of: scenefase) { _, ny in if ny == .active { Task { await hent() } } }
         }
     }
 
+    // MARK: data og styring
+
     private func hent() async {
         do {
+            // Modellen endrer seg sjelden, men den må være der før en bryter kan brukes:
+            // den vet hvilke lys som hører til hvilket rom.
+            if modell == nil { modell = try? await api.hent(Husmodell.self, "/api/hus/modell") }
             let s = try await api.hent(Husstatus.self, "/api/hus/status")
             status = s; feil = nil
-            // Legg igjen et øyeblikksbilde til widgeten. Den kjører i sin egen prosess og
-            // har ingen annen vei til dette når den vekkes uten nett.
             Delt.lagre(.init(effektWatt: s.effekt_watt, lysPaa: s.lys_paa,
-                             kroner: nil, oppdatert: Date()))
-        } catch {
-            feil = error.localizedDescription
+                             kroner: s.kr_per_kwh, oppdatert: Date()))
+        } catch { feil = error.localizedDescription }
+    }
+
+    /// Sender en kommando og henter status på nytt.
+    ///
+    /// Vi venter på serveren framfor å endre skjermen med én gang. En bryter som slår om
+    /// og så spretter tilbake er verre enn en som bruker et halvt sekund — særlig når det
+    /// den styrer er et lys man ser på.
+    private func styr(_ id: String, _ domain: String, _ service: String, _ data: [String: Any]) async {
+        jobber.insert(id)
+        defer { jobber.remove(id) }
+        do {
+            try await api.send("/api/hus/styr",
+                               ["domain": domain, "service": service, "data": data])
+            try? await Task.sleep(for: .milliseconds(400))
+            await hent()
+        } catch { feil = error.localizedDescription }
+    }
+
+    // MARK: kortene
+
+    @ViewBuilder
+    private func kort(_ id: String, _ s: Husstatus) -> some View {
+        if id == "strom" { stromkort(s) }
+        else if id == "scener" { scenekort(s) }
+        else if id.hasPrefix("rom:"), let r = s.rom.first(where: { "rom:" + $0.navn == id }) {
+            romkort(r)
         }
     }
 
-    private func topp(_ s: Husstatus) -> some View {
-        HStack(spacing: 14) {
-            tall(s.effekt_watt.map { String(format: "%.1f", Double($0) / 1000) } ?? "–", "kW nå")
-            tall("\(s.lys_paa)", "lys på")
-            tall("\(s.rom.filter { $0.klima == "varmer" }.count)", "rom varmer")
-            Spacer()
-        }
-    }
-
-    private func tall(_ verdi: String, _ tekst: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(verdi).font(.title2.weight(.medium).monospacedDigit()).foregroundStyle(Farge.tekst)
-            Text(tekst).font(.caption2).foregroundStyle(Farge.dempet)
-        }
-    }
-
-    private func romrad(_ r: Husstatus.Romstatus) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(r.navn).font(.subheadline.weight(.medium)).foregroundStyle(Farge.tekst)
-                HStack(spacing: 8) {
-                    if r.lys_totalt > 0 {
-                        Label("\(r.lys_paa) av \(r.lys_totalt)", systemImage: r.lys_paa > 0 ? "lightbulb.fill" : "lightbulb")
-                            .foregroundStyle(r.lys_paa > 0 ? Farge.aksent : Farge.svak)
-                    }
-                    // Ikon OG tekst; fargen alene skal ikke bære betydningen.
-                    if let k = r.klima, k != "av" {
-                        Label(k == "varmer" ? "varmer" : "kjøler",
-                              systemImage: k == "varmer" ? "flame.fill" : "snowflake")
-                            .foregroundStyle(k == "varmer" ? Farge.varm : Farge.kjol)
+    private func stromkort(_ s: Husstatus) -> some View {
+        Ramme {
+            HStack(alignment: .firstTextBaseline, spacing: 14) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(s.effekt_watt.map { String(format: "%.1f", Double($0) / 1000) } ?? "–")
+                        .font(.system(size: 34, weight: .light).monospacedDigit())
+                        .foregroundStyle(Farge.tekst)
+                    Text("kW akkurat nå").font(.caption2).foregroundStyle(Farge.dempet)
+                }
+                if let w = s.effekt_watt, let p = s.kr_per_kwh {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(String(format: "%.2f", Double(w) / 1000 * p))
+                            .font(.title3.monospacedDigit()).foregroundStyle(Farge.tekst)
+                        Text("kr/time").font(.caption2).foregroundStyle(Farge.dempet)
                     }
                 }
-                .font(.caption2)
-            }
-            Spacer()
-            // Null grader er en verdi; «ingen måler» er noe annet. Derfor strek, ikke 0.
-            if let t = r.temp {
-                Text(String(format: "%.1f°", t))
-                    .font(.title3.monospacedDigit()).foregroundStyle(Farge.dempet)
+                Spacer()
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("\(s.lys_paa)").font(.title3.monospacedDigit()).foregroundStyle(Farge.aksent)
+                    Text("lys på").font(.caption2).foregroundStyle(Farge.dempet)
+                }
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Farge.kort)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func scenekort(_ s: Husstatus) -> some View {
+        Ramme {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("SCENER").font(.system(size: 9, weight: .semibold)).foregroundStyle(Farge.dempet)
+                HStack(spacing: 8) {
+                    if let sc = s.scener {
+                        knapp("Alt av 1. etg", "moon.zzz", "alt1etg", jobber.contains("alt1etg")) {
+                            await styr("alt1etg", "light", "turn_off", ["entity_id": sc.alt1etgAv])
+                        }
+                        knapp("God natt", "bed.double", "godnatt", jobber.contains("godnatt")) {
+                            await styr("godnatt", "light", "turn_off", ["entity_id": sc.godNattAv])
+                            await styr("godnatt", "light", "turn_on",
+                                       ["entity_id": sc.godNattDempes.entity_id,
+                                        "brightness": sc.godNattDempes.brightness])
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func romkort(_ r: Husstatus.Romstatus) -> some View {
+        Ramme {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(r.navn).font(.subheadline.weight(.medium)).foregroundStyle(Farge.tekst)
+                    HStack(spacing: 8) {
+                        if r.lys_totalt > 0 {
+                            Label("\(r.lys_paa) av \(r.lys_totalt)",
+                                  systemImage: r.lys_paa > 0 ? "lightbulb.fill" : "lightbulb")
+                                .foregroundStyle(r.lys_paa > 0 ? Farge.aksent : Farge.svak)
+                        }
+                        // Ikon OG tekst — fargen alene skal ikke bære betydningen.
+                        if let k = r.klima, k != "av" {
+                            Label(k == "varmer" ? "varmer" : "kjøler",
+                                  systemImage: k == "varmer" ? "flame.fill" : "snowflake")
+                                .foregroundStyle(k == "varmer" ? Farge.varm : Farge.kjol)
+                        }
+                    }
+                    .font(.caption2)
+                }
+                Spacer()
+                // Null grader er en verdi; «ingen måler» er noe annet.
+                if let t = r.temp {
+                    Text(String(format: "%.1f°", t))
+                        .font(.title3.monospacedDigit()).foregroundStyle(Farge.dempet)
+                }
+                if r.lys_totalt > 0 {
+                    Toggle("", isOn: Binding(
+                        get: { r.lys_paa > 0 },
+                        set: { på in Task { await styr(r.navn, "light", på ? "turn_on" : "turn_off",
+                                                       ["entity_id": lysIRom(r.navn)]) } }))
+                        .labelsHidden().tint(Farge.aksent)
+                        .disabled(jobber.contains(r.navn))
+                }
+            }
+        }
+    }
+
+    /// Rommets lys hentes fra husmodellen, som backend eier. Appen har ingen egen liste
+    /// — to lister som skal være like, driver alltid fra hverandre.
+    private func lysIRom(_ navn: String) -> [String] {
+        modell?.rom.first { $0.navn == navn }?.lys ?? []
+    }
+
+    private func knapp(_ tittel: String, _ ikon: String, _ id: String, _ jobber: Bool,
+                       _ handling: @escaping () async -> Void) -> some View {
+        Button { Task { await handling() } } label: {
+            HStack(spacing: 6) {
+                if jobber { ProgressView().controlSize(.mini).tint(Farge.dempet) }
+                else { Image(systemName: ikon).font(.caption) }
+                Text(tittel).font(.caption.weight(.medium))
+            }
+            .padding(.horizontal, 12).padding(.vertical, 9)
+            .frame(maxWidth: .infinity)
+            .background(Farge.kort2).foregroundStyle(Farge.tekst)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .disabled(jobber)
+    }
+}
+
+/// Felles ramme for kortene, så de ser like ut uansett innhold.
+private struct Ramme<Innhold: View>: View {
+    @ViewBuilder var innhold: () -> Innhold
+    var body: some View {
+        innhold()
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Farge.kort)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+/// Hvilke kort som vises i Huset, og i hvilken rekkefølge.
+struct Kortoppsett: View {
+    @Bindable var oppsett: Oppsett
+    let kort: [String]
+    @Environment(\.dismiss) private var lukk
+
+    private func navn(_ id: String) -> String {
+        id == "strom" ? "Strøm" : id == "scener" ? "Scener" : String(id.dropFirst(4))
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(oppsett.ordne(kort), id: \.self) { id in
+                        HStack {
+                            Text(navn(id)).font(.subheadline)
+                                .foregroundStyle(oppsett.skjult.contains(id) ? Farge.svak : Farge.tekst)
+                            Spacer()
+                            Toggle("", isOn: Binding(get: { !oppsett.skjult.contains(id) },
+                                                     set: { oppsett.settSynlig(id, $0) }))
+                                .labelsHidden().tint(Farge.aksent)
+                        }
+                        .listRowBackground(Farge.kort)
+                    }
+                    .onMove { oppsett.flyttIds(kort, fra: $0, til: $1) }
+                } footer: {
+                    Text("Dra for å endre rekkefølgen. Rommene kommer fra huset, så nye "
+                         + "rom dukker opp nederst av seg selv.")
+                        .font(.caption2).foregroundStyle(Farge.svak)
+                }
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(Farge.flate)
+            .environment(\.editMode, .constant(.active))
+            .navigationTitle("Kort i Huset")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Farge.flate, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Nullstill") { oppsett.nullstill() }.foregroundStyle(Farge.svak)
+                }
+                ToolbarItem(placement: .topBarTrailing) { Button("Ferdig") { lukk() } }
+            }
+        }
     }
 }
