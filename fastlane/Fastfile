@@ -39,6 +39,31 @@ platform :ios do
     # Automatisk signering ble prøvd i tre varianter og ba hver gang om en
     # «iOS App Development»-profil, som lagde et nytt utviklingssertifikat per kjøring
     # til kontoens kvote var brukt opp. match gjenbruker ett sertifikat i stedet.
+    # Hva Apple mener app-ID-ene kan.
+    #
+    # En profil arver kapabilitetene fra app-ID-en i det den lages. Mangler App Groups
+    # der, blir profilen laget uten — og xcodebuild sier «requires a provisioning profile
+    # with the App Groups feature», som høres ut som en profilfeil, men er en app-ID-feil.
+    # Uten denne utskriften er det umulig å skille de to fra en byggelogg.
+    Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.create(
+      key_id: key_id,
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      filepath: key_path
+    )
+    [APP_ID, WIDGET_ID].each do |bid|
+      b = Spaceship::ConnectAPI::BundleId.find(bid)
+      if b.nil?
+        UI.important("#{bid}: finnes ikke på kontoen ennå — match lager den")
+        next
+      end
+      typer = b.get_capabilities.map(&:capability_type)
+      UI.message("#{bid}: #{typer.empty? ? '(ingen kapabiliteter)' : typer.join(', ')}")
+      unless typer.include?("APP_GROUPS")
+        UI.important("#{bid} mangler App Groups. Slå den på i portalen og velg " \
+                     "gruppa, ellers blir profilen laget uten og bygget feiler.")
+      end
+    end
+
     #
     # Begge bundle-ID-ene i ETT kall: match gjenbruker da samme sertifikat for begge.
     # To separate kall gjør samme jobb, men rører sertifikat-repoet to ganger.
