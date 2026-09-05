@@ -112,6 +112,9 @@ struct Hovedvisning: View {
                         NavigationLink { FplModul(api: api) } label: {
                             modul("Fantasy", "sportscourt", "anbefaling, tropp og helse")
                         }
+                        NavigationLink { HusModul(api: api) } label: {
+                            modul("Huset", "house", "lys, varme og forbruk")
+                        }
                     } header: {
                         Text("Moduler").font(.caption).foregroundStyle(Farge.dempet)
                     }

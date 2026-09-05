@@ -21,6 +21,9 @@ targets:
     type: application
     platform: iOS
     sources: [Sources]
+    dependencies:
+      - target: Huswidget
+        embed: true
     # Ekte Info.plist generert av XcodeGen — mer forutsigbart enn INFOPLIST_KEY_*-
     # byggeinnstillinger når verdien er en liste.
     info:
@@ -55,6 +58,9 @@ targets:
       base:
         # Ett av to steder du må endre ved fork (det andre er DEVELOPMENT_TEAM).
         PRODUCT_BUNDLE_IDENTIFIER: no.gustavs1.hjemme
+        # App-gruppa er den eneste mappa appen og widgeten deler. Uten den kan
+        # widgeten ikke lese noe som helst fra appen.
+        CODE_SIGN_ENTITLEMENTS: Sources/NestifyHub.entitlements
         # Peker på Assets.xcassets/AppIcon.appiconset. Setter samtidig CFBundleIconName,
         # som App Store krever — uten den avvises opplastingen.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -76,11 +82,46 @@ targets:
           CODE_SIGNING_REQUIRED: "NO"
           CODE_SIGNING_ALLOWED: "NO"
 
+  # Widgeten er et EGET mål med egen bundle-ID og egen provisjoneringsprofil.
+  # ⚠️ Første signerte bygg feiler til `match` har laget profil for
+  # `no.gustavs1.hjemme.widget` og app-gruppa er registrert på kontoen. Det er en
+  # engangsjobb i Apples portal, ikke noe koden kan ordne.
+  Huswidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Widget
+      # Det delte laget kompileres inn i BEGGE mål. Widgeten kan ikke importere appen —
+      # den er en egen prosess — så koden må ligge i begge binærene.
+      - Sources/Delt
+    info:
+      path: Widget/Info.plist
+      properties:
+        CFBundleDisplayName: Huset
+        CFBundleVersion: ${BUILD_NUMBER}
+        CFBundleShortVersionString: ${MARKETING_VERSION}
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: no.gustavs1.hjemme.widget
+        CODE_SIGN_ENTITLEMENTS: Widget/Huswidget.entitlements
+        SKIP_INSTALL: "YES"
+      configs:
+        Release:
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+        Debug:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: ""
+          CODE_SIGNING_REQUIRED: "NO"
+          CODE_SIGNING_ALLOWED: "NO"
+
 schemes:
   NestifyHub:
     build:
       targets:
         NestifyHub: all
+        Huswidget: all
     run:
       config: Debug
     # ARKIVERING MÅ VÆRE RELEASE. XcodeGens standardskjema arkiverte med Debug, og da
