@@ -10,6 +10,10 @@
 default_platform(:ios)
 
 APP_ID = "no.gustavs1.hjemme"
+# Widgeten er et eget mål og trenger sin EGEN profil. En profil dekker én bundle-ID, så
+# appens profil kan ikke signere widgeten — arkiveringen feiler på widget-målet med en
+# feil som peker på appen, ikke på widgeten.
+WIDGET_ID = "#{APP_ID}.widget"
 
 platform :ios do
   desc "Bygg og last opp til TestFlight"
@@ -35,11 +39,14 @@ platform :ios do
     # Automatisk signering ble prøvd i tre varianter og ba hver gang om en
     # «iOS App Development»-profil, som lagde et nytt utviklingssertifikat per kjøring
     # til kontoens kvote var brukt opp. match gjenbruker ett sertifikat i stedet.
+    #
+    # Begge bundle-ID-ene i ETT kall: match gjenbruker da samme sertifikat for begge.
+    # To separate kall gjør samme jobb, men rører sertifikat-repoet to ganger.
     match(
       type: "appstore",
-      app_identifier: APP_ID,
+      app_identifier: [APP_ID, WIDGET_ID],
       api_key: api_key,
-      readonly: false,          # første kjøring må få lage profilen for denne appen
+      readonly: false,          # første kjøring må få lage profilene
       git_url: ENV.fetch("MATCH_GIT_URL"),
       git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTHORIZATION"]
     )
@@ -50,10 +57,16 @@ platform :ios do
     # Manuell signering: match har allerede lagt riktig sertifikat og profil på plass.
     # -allowProvisioningUpdates er BEVISST borte — det er den som ba Apple om nye
     # sertifikater. Profilnavnet kommer fra match.
-    profil = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING][APP_ID]
+    profiler = lane_context[SharedValues::MATCH_PROVISIONING_PROFILE_MAPPING]
+    profil = profiler[APP_ID]
+    profil_widget = profiler[WIDGET_ID]
+    UI.user_error!("match ga ingen profil for #{WIDGET_ID}") if profil_widget.nil?
+
+    # PROVISIONING_PROFILE_SPECIFIER på kommandolinja gjelder ALLE mål i bygget, og ville
+    # tvunget appens profil på widgeten. Derfor bare sertifikatet her — hvilken profil
+    # hvert mål får, avgjøres av export_options under.
     signering = "CODE_SIGN_STYLE=Manual " \
-                "CODE_SIGN_IDENTITY='Apple Distribution' " \
-                "PROVISIONING_PROFILE_SPECIFIER='#{profil}'"
+                "CODE_SIGN_IDENTITY='Apple Distribution'"
 
     build_app(
       scheme: "NestifyHub",
@@ -69,7 +82,7 @@ platform :ios do
       # avviser at flagget oppgis to ganger.
       export_options: {
         signingStyle: "manual",
-        provisioningProfiles: { APP_ID => profil }
+        provisioningProfiles: { APP_ID => profil, WIDGET_ID => profil_widget }
       }
     )
 
