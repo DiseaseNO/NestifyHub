@@ -127,10 +127,67 @@ struct FplStatus: Decodable {
         }
         private enum Nøkler: String, CodingKey { case tittel, hva }
     }
+    /// Fri tekst om byttesituasjonen.
+    ///
+    /// Var en streng, ble et objekt 5. september 2026 uten at `versjon` ble bumpet.
+    /// Dekoderen tar imot begge: fra objektet plukkes `plan`, som er setningen kilden
+    /// selv skriver. Det er meningen bak feltet, uansett innpakning.
     let bytte_status: String?
     let anbefaling: Anbefaling?
     /// Odds-avledet per lag, alle 20, nøklet på klubbnavn. **Framoverskuende.**
     let kampforventning: [String: Kampforventning]?
+
+    /// Dekoder felt for felt, slik at ETT felt som skifter form ikke tar med seg
+    /// skjermen.
+    ///
+    /// Vi eier ikke formatet. Med syntetisert dekoding er hele `FplStatus` enten-eller:
+    /// da `bytte_status` gikk fra streng til objekt 5. september, ble Fantasy helt blank
+    /// — ikke bare den ene linja. Det er feil pris for en endring i ett felt.
+    ///
+    /// Det som MÅ til for at skjermen betyr noe (troppen, runden, laget) kastes fortsatt.
+    /// Er de borte, er det riktig å si fra i stedet for å tegne et tomt skall.
+    init(from dekoder: Decoder) throws {
+        let c = try dekoder.container(keyedBy: Nøkler.self)
+        versjon   = try c.decode(Int.self, forKey: .versjon)
+        generert  = try c.decode(String.self, forKey: .generert)
+        sesong    = try c.decode(String.self, forKey: .sesong)
+        lag       = try c.decode(Lag.self, forKey: .lag)
+        runde     = try c.decode(Runde.self, forKey: .runde)
+        tropp     = try c.decode([Spiller].self, forKey: .tropp)
+        sjekker   = (try? c.decode([Sjekk].self, forKey: .sjekker)) ?? []
+        kilder    = (try? c.decode([Kilde].self, forKey: .kilder)) ?? []
+
+        odds_kvote_igjen          = try? c.decodeIfPresent(Int.self, forKey: .odds_kvote_igjen)
+        modell_status             = try? c.decodeIfPresent(String.self, forKey: .modell_status)
+        aapne_sporsmal            = try? c.decodeIfPresent([Punkt].self, forKey: .aapne_sporsmal)
+        aapne_risikoer            = try? c.decodeIfPresent([Punkt].self, forKey: .aapne_risikoer)
+        modell_status_sammendrag  = try? c.decodeIfPresent(String.self, forKey: .modell_status_sammendrag)
+        sporsmal_oversikt         = try? c.decodeIfPresent(Oversikt.self, forKey: .sporsmal_oversikt)
+        endret                    = try? c.decodeIfPresent([Endring].self, forKey: .endret)
+        endret_historikk          = try? c.decodeIfPresent([Endring].self, forKey: .endret_historikk)
+        ordliste                  = try? c.decodeIfPresent([String: Kildeord].self, forKey: .ordliste)
+        anbefaling                = try? c.decodeIfPresent(Anbefaling.self, forKey: .anbefaling)
+        kampforventning           = try? c.decodeIfPresent([String: Kampforventning].self, forKey: .kampforventning)
+
+        // Streng før 5. september, objekt etter. Fra objektet er `plan` setningen som
+        // faktisk sier noe; resten er tall appen viser andre steder.
+        if let tekst = try? c.decodeIfPresent(String.self, forKey: .bytte_status) {
+            bytte_status = tekst
+        } else if let o = try? c.decodeIfPresent(Byttestatusobjekt.self, forKey: .bytte_status) {
+            bytte_status = o.plan
+        } else {
+            bytte_status = nil
+        }
+    }
+
+    private struct Byttestatusobjekt: Decodable { let plan: String? }
+
+    private enum Nøkler: String, CodingKey {
+        case versjon, generert, sesong, lag, runde, tropp, sjekker, kilder
+        case odds_kvote_igjen, modell_status, aapne_sporsmal, aapne_risikoer
+        case modell_status_sammendrag, sporsmal_oversikt, endret, endret_historikk
+        case ordliste, bytte_status, anbefaling, kampforventning
+    }
 
     /// Den ventende beslutningen som struktur.
     ///
