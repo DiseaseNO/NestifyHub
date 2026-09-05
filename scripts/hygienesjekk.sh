@@ -42,6 +42,13 @@ sjekk "Vertsnavn i repoet" '\b[a-z0-9-]+(\.[a-z0-9-]+){1,}\.(no|com|net|org|io|l
 # Nettverks- og infrastrukturbegreper som avslører topologi.
 sjekk "Infrastruktur nevnt" '\bVLAN\b|\bCT ?[0-9]{3}\b|\bLXC\b|\bsystemd\b|reverse[ -]?proxy|\bNVR\b|\bRTSP\b'
 
+# Hvordan adgangen er sikret. En kommentar som forklarer at ÉN sti er hardkodet mens en
+# annen tar parametre, eller hvilke roller som finnes, forteller en fremmed hvor grensen
+# går og hvor det er verdt å lete. Koden skal si HVA den gjør, ikke hvorfor det er trygt.
+#
+# Hører begrunnelsen hjemme et sted, hører den hjemme i det interne repoet.
+sjekk "Sikkerhetsmekanikk forklart" '\bhviteliste?\b|\bwhitelist\b|\ballow-?list\b|\brolle[nr]?\b *[«"'\'']|\bhardkodet i backend\b|\bsiles i\b|\bikke tillatt\b|\btilgangskontroll\b|\bsperre[nrt]?\b *(mot|for|i)|\bkan ikke misbrukes\b'
+
 # Leverandører. Lang liste med vilje — hvem som står her røper ikke hvem vi bruker.
 sjekk "Leverandørnavn nevnt" '\bForti[A-Za-z]*|\bCisco\b|\bJuniper\b|\bUbiquiti\b|\bUniFi\b|\bPalo ?Alto\b|\bSynology\b|\bQNAP\b|\bProxmox\b|\bVMware\b|\bTP-?Link\b|\bMikroTik\b|\bHikvision\b|\bDahua\b|\bAxis Communications\b'
 

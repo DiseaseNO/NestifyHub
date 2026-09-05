@@ -6,10 +6,8 @@ import SwiftUI
 /// hjemskjermen. Ett rom er ett kort; scener og strøm er egne kort. Den som bare bryr
 /// seg om varmen, skrur av resten.
 ///
-/// Appen regner ikke ut noe selv — den viser hva serveren sier, og sender kommandoer
-/// tilbake gjennom `/api/hus/styr`. Garasjeporten går en egen vei (`/api/hus/garasje`)
-/// der handlingen er hardkodet i backend: kortet ber om «puls porten», ikke om å kjøre
-/// et script appen selv har valgt.
+/// Appen regner ikke ut noe selv — den viser hva serveren sier. To klienter som regner
+/// hver for seg kommer fram til forskjellige svar.
 struct HusModul: View {
     let api: API
     @State private var status: Husstatus?
@@ -117,9 +115,8 @@ struct HusModul: View {
         } catch { feil = error.localizedDescription }
     }
 
-    /// Garasjeporten. Egen rute uten parametre — appen ber om «puls porten», og backend
-    /// bestemmer hva det betyr. Vi bekrefter først: porten veksler, så et feiltrykk på
-    /// vei ut av huset lukker den bak bilen.
+    /// Garasjeporten. Vi bekrefter først: porten veksler, så et feiltrykk på vei ut av
+    /// huset lukker den bak bilen.
     private func port() async {
         jobber.insert("garasje")
         defer { jobber.remove("garasje") }

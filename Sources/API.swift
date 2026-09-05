@@ -84,11 +84,11 @@ final class API {
         try await kall(type, sti, q, metode: "POST")
     }
 
-    /// POST med JSON-kropp. Brukes til husstyring, der serveren trenger å vite HVA som
-    /// skal gjøres — ikke bare at noe skal skje.
+    /// POST med JSON-kropp, for kall der serveren trenger å vite HVA som skal gjøres —
+    /// ikke bare at noe skal skje.
     ///
-    /// Svaret leses ikke: backend svarer `{ok:true}` eller en feilkode, og koden er det
-    /// vi bryr oss om. En tom kropp fra serveren skal ikke bli en dekodingsfeil.
+    /// Svaret leses ikke: statuskoden er det vi bryr oss om, og en tom kropp skal ikke
+    /// bli en dekodingsfeil.
     func send(_ sti: String, _ kropp: [String: Any]) async throws {
         guard let token, let u = adresse(sti) else { throw APIFeil.ingenServer }
         var rq = URLRequest(url: u)

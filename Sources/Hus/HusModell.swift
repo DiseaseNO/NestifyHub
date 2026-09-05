@@ -34,9 +34,8 @@ struct Husmodell: Decodable {
 
 /// Øyeblikksbildet av huset — det appen faktisk viser.
 ///
-/// Backend har allerede `/api/strom` for strømbildet; her handler det om lys og klima.
-/// Verdiene hentes fra husmodellen pluss tilstandene, og appen regner ikke ut noe selv:
-/// den viser hva serveren sier.
+/// Verdiene kommer ferdig regnet fra serveren — appen regner ikke ut noe selv, den
+/// viser hva den får.
 struct Husstatus: Decodable {
     let rom: [Romstatus]
     let effekt_watt: Int?
@@ -74,8 +73,8 @@ struct Husstatus: Decodable {
 
 /// En entitet et multikort kan vise — lys, bryter eller varme.
 ///
-/// Backend har allerede silt bort det HA regner som konfigurasjon («Child lock»,
-/// «Frost guard»), så alt i denne lista er noe i huset man faktisk kan røre.
+/// Lista er allerede renset for innstillinger som ikke hører hjemme i et kort, så alt
+/// her er noe i huset man faktisk kan røre.
 struct Husentitet: Decodable, Identifiable {
     let id: String
     let navn: String

@@ -6,10 +6,9 @@ import SwiftUI
 /// framfor rommene huset tilfeldigvis er delt inn i. Vaskerom, varmekabler og utelys
 /// hører ikke til samme rom, men de hører gjerne til samme kort.
 ///
-/// Alternativet — «velg entiteter» rett i romkortene — ble forkastet fordi rommene
-/// eies av backend. Skal appen kunne overstyre dem, må appen ha sin egen liste, og da
-/// har vi to lister som skal være like. Multikortet er en egen ting ved siden av, ikke
-/// en overstyring.
+/// Alternativet — å endre rommene selv — ble forkastet: da har appen sin egen liste ved
+/// siden av den ekte, og to lister som skal være like driver alltid fra hverandre.
+/// Multikortet er en egen ting ved siden av rommene, ikke en overstyring av dem.
 ///
 /// Lagres i app-gruppa, som resten av oppsettet, så widgeten kan lese det senere.
 @Observable
