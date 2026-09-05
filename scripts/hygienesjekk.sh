@@ -16,7 +16,9 @@ set -uo pipefail
 UNNTAK='^(scripts/hygienesjekk\.sh|\.git/)'
 
 # Ting som SKAL kunne stå: bundle-ID-er (omvendt domene), Apple og GitHub.
-TILLATT='no\.gustavs1\.[a-z]+|com\.apple\.|developer\.apple\.com|api\.github\.com|github\.com|help\.apple\.com'
+# `www.apple.com` staar i DOCTYPE-en til enhver .entitlements/.plist-fil. Den er
+# Apples egen DTD-adresse, obligatorisk, og sier ingenting om dette huset.
+TILLATT='no\.gustavs1\.[a-z]+|com\.apple\.|developer\.apple\.com|www\.apple\.com|api\.github\.com|github\.com|help\.apple\.com'
 
 funn=0
 sjekk() {
