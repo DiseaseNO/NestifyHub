@@ -88,6 +88,11 @@ struct Husentitet: Decodable, Identifiable {
     /// Om lyset faktisk kan dimmes. En av/på-pære med en dimmer som ikke gjør noe er
     /// verre enn ingen dimmer, så vi spør før vi tegner den.
     let dimbar: Bool
+    /// Døgn siden enheten sa noe. **Ikke** «av» og ikke «feil»: enhetene sender bare
+    /// når noe endrer seg, så en lampe som trekkes ut slutter bare å si fra — og den
+    /// siste meldingen, kanskje «på», blir stående. Vi viser tallet framfor å påstå
+    /// noe, for en bryter som ikke har rørt seg på to måneder kan godt være på.
+    let stille_dager: Int?
     /// Klima: hva den gjør nå (`heating`, `idle`, …). Null for lys og brytere.
     let handling: String?
     /// Målt temperatur der termostaten står.

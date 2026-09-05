@@ -74,7 +74,10 @@ struct Innhold: View {
     private func lysrad(_ e: Husentitet) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(e.navn).font(.subheadline).foregroundStyle(Farge.tekst).lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(e.navn).font(.subheadline).foregroundStyle(Farge.tekst).lineLimit(1)
+                    Stillemerke(dager: e.stille_dager)
+                }
                 Spacer()
                 if jobber.contains(e.id) {
                     ProgressView().controlSize(.mini).tint(Farge.dempet)
@@ -99,7 +102,10 @@ struct Innhold: View {
 
     private func bryterrad(_ e: Husentitet) -> some View {
         HStack {
-            Text(e.navn).font(.subheadline).foregroundStyle(Farge.tekst).lineLimit(1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(e.navn).font(.subheadline).foregroundStyle(Farge.tekst).lineLimit(1)
+                Stillemerke(dager: e.stille_dager)
+            }
             Spacer()
             Toggle("", isOn: Binding(
                 get: { e.paa },
@@ -126,6 +132,7 @@ struct Innhold: View {
                     }
                 }
                 .font(.caption2).foregroundStyle(Farge.svak)
+                Stillemerke(dager: e.stille_dager)
             }
             Spacer()
             HStack(spacing: 6) {
@@ -157,6 +164,23 @@ struct Innhold: View {
 }
 
 }   // extension Romoverlay
+
+/// «Sist sett» for en enhet som har vært stille lenge.
+///
+/// Terskelen er en uke. Kortere ville merket alt som sjelden endrer seg — en utelampe
+/// som står på hele høsten sier ingenting på ukevis, og den er ikke borte.
+struct Stillemerke: View {
+    let dager: Int?
+    private var vis: Bool { (dager ?? 0) >= 7 }
+
+    var body: some View {
+        if vis, let d = dager {
+            Label(d >= 60 ? "ikke hørt fra på \(d / 30) måneder" : "ikke hørt fra på \(d) døgn",
+                  systemImage: "wifi.slash")
+                .font(.system(size: 9)).foregroundStyle(Farge.svak)
+        }
+    }
+}
 
 /// Lysstyrke.
 ///
