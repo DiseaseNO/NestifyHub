@@ -7,6 +7,11 @@ on:
     branches: [main]
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      nye_profiler:
+        description: "Lag provisjoneringsprofilene på nytt (etter endring i portalen)"
+        type: boolean
+        default: false
 
 jobs:
   # Kjører FØRST og stopper alt hvis noe som avslører nettverket har sneket seg inn.
@@ -73,6 +78,10 @@ jobs:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          # Profilene gjenbrukes normalt. Endrer man kapabiliteter i portalen, blir de
+          # lagrede profilene stående uten den nye — de er fortsatt «gyldige», bare
+          # utdaterte. Da må de lages på nytt, og det er dette flagget til for.
+          MATCH_NYE_PROFILER: ${{ inputs.nye_profiler }}
           FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT: "120"
 
   # Kjører appen i simulator og laster opp skjermbilder som artefakter. Uten dette bygger

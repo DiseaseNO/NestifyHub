@@ -72,6 +72,11 @@ platform :ios do
       app_identifier: [APP_ID, WIDGET_ID],
       api_key: api_key,
       readonly: false,          # første kjøring må få lage profilene
+      # En profil får kapabilitetene app-ID-en hadde DA den ble laget. Slår man på App
+      # Groups i portalen etterpå, fortsetter match å gjenbruke den gamle profilen —
+      # den er gyldig, bare uten den nye kapabiliteten, og xcodebuild klager på profilen
+      # framfor å si hva som mangler. Utløs kjøringen med «nye_profiler» for å få ferske.
+      force: ENV["MATCH_NYE_PROFILER"] == "true",
       git_url: ENV.fetch("MATCH_GIT_URL"),
       git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTHORIZATION"]
     )
