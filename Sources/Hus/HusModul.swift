@@ -10,6 +10,9 @@ import SwiftUI
 /// hver for seg kommer fram til forskjellige svar.
 struct HusModul: View {
     let api: API
+    @State private var faner = Faner()
+    @State private var valgtFane = "hjem"
+    @State private var visFaneoppsett = false
     @State private var status: Husstatus?
     @State private var modell: Husmodell?
     @State private var feil: String?
@@ -19,6 +22,15 @@ struct HusModul: View {
     @State private var multi = Multikort()
     @State private var entiteter: [Husentitet] = []
     @State private var bekreftPort = false
+    /// Kortet som er åpnet. Egen type framfor en `Bool` + et navn: to tilstander som må
+    /// stemme overens, gjør at arket kan åpnes tomt.
+    @State private var aapnet: Aapnetkort?
+
+    struct Aapnetkort: Identifiable {
+        let id: String
+        let tittel: String
+        let entiteter: [String]
+    }
     @Environment(\.scenePhase) private var scenefase
 
     /// Kort-id-ene i visningsrekkefølge. Rommene kommer fra serveren, så lista er ikke
@@ -32,6 +44,93 @@ struct HusModul: View {
     }
 
     var body: some View {
+        TabView(selection: $valgtFane) {
+            ForEach(faner.synlige) { f in
+                fanevisning(f)
+                    .tabItem { Label(f.navn, systemImage: f.ikon) }
+                    .tag(f.id)
+            }
+        }
+        .tint(Farge.aksent)
+    }
+
+    /// Innholdet i én fane. Rom- og egen-faner er samme visning med ulik kilde til
+    /// entitetslista — rommet spør huset, den egne spør brukerens eget utvalg.
+    @ViewBuilder
+    private func fanevisning(_ f: Fane) -> some View {
+        switch f.slag {
+        case .hjem:     hjemfane
+        case .strom:    ramme(f) { Stromfane(api: api) }
+        case .oppgaver: ramme(f) { Oppgaverfane(api: api) }
+        case .rom:      ramme(f) { entitetsliste(iRom(f.rom)) }
+        case .egen:     ramme(f) { entitetsliste(f.entiteter) }
+        }
+    }
+
+    /// Felles skall: tittel, oppsett-knapp og oppdatering. Uten dette måtte hver fane
+    /// husket å ha dem, og en fane uten vei til oppsettet er en blindvei.
+    @ViewBuilder
+    private func ramme<Innhold: View>(_ f: Fane,
+                                      @ViewBuilder _ innhold: () -> Innhold) -> some View {
+        NavigationStack {
+            innhold()
+                .navigationTitle(f.navn)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(Farge.flate, for: .navigationBar)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { visFaneoppsett = true } label: {
+                            Image(systemName: "slider.horizontal.3")
+                        }
+                    }
+                }
+                .sheet(isPresented: $visFaneoppsett) { faneoppsett }
+        }
+    }
+
+    private var faneoppsett: some View {
+        Faneoppsett(faner: faner,
+                    rom: status?.rom.map(\.navn) ?? [],
+                    entiteter: entiteter)
+    }
+
+    /// Entitetene i et rom, hentet fra husmodellen. Appen har ingen egen liste — da ville
+    /// et nytt lys i rommet krevd en ny app-versjon.
+    private func iRom(_ navn: String?) -> [String] {
+        guard let navn, let r = modell?.rom.first(where: { $0.navn == navn }) else { return [] }
+        return r.lys + r.klima
+    }
+
+    /// En rom- eller egen-fane: tingene, med dimmer og varme, uten omvei via et kort.
+    @ViewBuilder
+    private func entitetsliste(_ ids: [String]) -> some View {
+        let valgte = ids.compactMap { id in entiteter.first { $0.id == id } }
+        if status == nil {
+            ProgressView().tint(Farge.dempet).frame(maxWidth: .infinity).padding(.top, 40)
+                .frame(maxHeight: .infinity).background(Farge.flate)
+        } else if valgte.isEmpty {
+            VStack(spacing: 6) {
+                Text("Ingenting valgt i denne fanen ennå.")
+                    .font(.footnote).foregroundStyle(Farge.svak)
+                Text("Åpne oppsettet øverst til høyre.")
+                    .font(.caption2).foregroundStyle(Farge.svak)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity).background(Farge.flate)
+        } else {
+            Romoverlay.Innhold(entiteter: valgte, styr: styrEntitet, jobber: jobber)
+                .background(Farge.flate)
+                .refreshable { await hent() }
+        }
+    }
+
+    /// Signaturen `Romoverlay` og fanene deler. Kortene styrer grupper, radene styrer
+    /// én ting — men veien ut er den samme.
+    private func styrEntitet(_ id: String, _ domain: String, _ service: String,
+                             _ data: [String: Any]) async {
+        await styr(id, domain, service, data)
+    }
+
+    private var hjemfane: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
@@ -56,10 +155,14 @@ struct HusModul: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Farge.flate, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { visFaneoppsett = true } label: { Image(systemName: "rectangle.3.group") }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { visOppsett = true } label: { Image(systemName: "slider.horizontal.3") }
                 }
             }
+            .sheet(isPresented: $visFaneoppsett) { faneoppsett }
             .sheet(isPresented: $visOppsett) {
                 if let s = status {
                     Kortoppsett(oppsett: oppsett, multi: multi,
@@ -208,9 +311,9 @@ struct HusModul: View {
 
     private func romflis(_ r: Husstatus.Romstatus) -> some View {
         Button {
-            guard r.lys_totalt > 0 else { return }
-            Task { await styr(r.navn, "light", r.lys_paa > 0 ? "turn_off" : "turn_on",
-                              ["entity_id": lysIRom(r.navn)]) }
+            // Flisa åpner rommet framfor å veksle lyset. Å skru av fem lys med ett trykk
+            // er lett gjort ved et uhell; å åpne et ark er det ikke.
+            aapnet = Aapnetkort(id: r.navn, tittel: r.navn, entiteter: alleIRom(r.navn))
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 Text(r.navn).font(.caption.weight(.medium)).lineLimit(2)
@@ -236,7 +339,7 @@ struct HusModul: View {
             .background(Farge.kort2)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
-        .disabled(jobber.contains(r.navn) || r.lys_totalt == 0)
+        .disabled(jobber.contains(r.navn))
     }
 
     /// Én entitet i et multikort. Lys og brytere får en bryter; varme får måltemperatur
@@ -373,8 +476,23 @@ struct HusModul: View {
                         .labelsHidden().tint(Farge.aksent)
                         .disabled(jobber.contains(r.navn))
                 }
+                // Peker på at det er mer bak kortet. Uten den er det ingenting som sier
+                // at kortet kan trykkes — en usynlig funksjon er ingen funksjon.
+                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(Farge.svak)
             }
         }
+        // Bryteren over ligger inni, og et trykk PÅ den skal ikke også åpne arket.
+        // `contentShape` + `onTapGesture` på rammen lar bryteren ta sitt eget trykk først.
+        .contentShape(Rectangle())
+        .onTapGesture {
+            aapnet = Aapnetkort(id: r.navn, tittel: r.navn, entiteter: alleIRom(r.navn))
+        }
+    }
+
+    /// Alt i rommet — lys, brytere og varme. Kortet viser lysene; overlayet viser tingene.
+    private func alleIRom(_ navn: String) -> [String] {
+        guard let r = modell?.rom.first(where: { $0.navn == navn }) else { return [] }
+        return r.lys + r.klima
     }
 
     /// Rommets lys hentes fra husmodellen, som backend eier. Appen har ingen egen liste
