@@ -71,6 +71,11 @@ targets:
           # (Ved AUTOMATISK signering var denne linja tvert imot en konflikt. Forskjellen
           # er hele poenget: automatisk gjetter, manuell krever at man er presis.)
           CODE_SIGN_IDENTITY: "Apple Distribution"
+          CODE_SIGN_STYLE: Manual
+          # Profilen må velges PER MÅL. På kommandolinja gjelder én verdi hele bygget,
+          # og da får widgeten appens profil — som ikke dekker widgetens bundle-ID.
+          # Navnet er `match AppStore <bundle-id>`, som match alltid bruker.
+          PROVISIONING_PROFILE_SPECIFIER: "match AppStore no.gustavs1.hjemme"
         # Debug skal ALDRI signere. Automatisk signering løser opp signering for hele
         # prosjektet når Xcode åpner det — også konfigurasjoner vi ikke arkiverer. Debug
         # ba derfor om en «iOS App Development»-profil og lagde et nytt utviklings-
@@ -110,6 +115,8 @@ targets:
       configs:
         Release:
           CODE_SIGN_IDENTITY: "Apple Distribution"
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: "match AppStore no.gustavs1.hjemme.widget"
         Debug:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: ""

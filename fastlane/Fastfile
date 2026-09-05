@@ -92,9 +92,10 @@ platform :ios do
     profil_widget = profiler[WIDGET_ID]
     UI.user_error!("match ga ingen profil for #{WIDGET_ID}") if profil_widget.nil?
 
-    # PROVISIONING_PROFILE_SPECIFIER på kommandolinja gjelder ALLE mål i bygget, og ville
-    # tvunget appens profil på widgeten. Derfor bare sertifikatet her — hvilken profil
-    # hvert mål får, avgjøres av export_options under.
+    # PROVISIONING_PROFILE_SPECIFIER settes IKKE her. På kommandolinja gjelder én verdi
+    # alle mål, og widgeten ville fått appens profil. Hvert mål har sin egen i
+    # `project.yml` i stedet. `export_options` under gjelder bare eksport-steget —
+    # arkiveringen leser prosjektets innstillinger, og der må valget stå.
     signering = "CODE_SIGN_STYLE=Manual " \
                 "CODE_SIGN_IDENTITY='Apple Distribution'"
 
