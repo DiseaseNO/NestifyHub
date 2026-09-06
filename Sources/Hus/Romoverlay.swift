@@ -25,6 +25,10 @@ struct Romoverlay: View {
                 .toolbarBackground(Farge.flate, for: .navigationBar)
                 .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Ferdig") { lukk() } } }
         }
+        // Et rom med to lamper trenger ikke hele skjermen. Halvt ark først, dra opp for
+        // resten — og huset bak er fortsatt synlig, så man vet hvor man er.
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 

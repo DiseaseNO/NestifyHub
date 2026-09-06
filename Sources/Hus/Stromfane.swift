@@ -76,6 +76,8 @@ struct Stromfane: View {
                 }
             }
             .padding(16)
+            // Siste rad skal ikke ligge under fanelinja.
+            .padding(.bottom, 24)
         }
         .background(Farge.flate)
         .scrollIndicators(.hidden)
@@ -148,10 +150,14 @@ struct Stromfane: View {
                 }
                 Spacer()
                 if let w = s.naa.total_watt, let p = s.pris.kr_per_kwh {
+                    // Under en krone leses ører lettere, over leses kroner lettere.
+                    let kr = Double(w) / 1000 * p
                     VStack(alignment: .trailing, spacing: 1) {
-                        Text(String(format: "%.0f", Double(w) / 1000 * p * 100))
+                        Text(kr < 1 ? String(format: "%.0f", kr * 100)
+                                    : String(format: "%.2f", kr))
                             .font(.title3.monospacedDigit()).foregroundStyle(Farge.tekst)
-                        Text("øre i timen").font(.caption2).foregroundStyle(Farge.dempet)
+                        Text(kr < 1 ? "øre i timen" : "kroner i timen")
+                            .font(.caption2).foregroundStyle(Farge.dempet)
                     }
                 }
             }
@@ -277,12 +283,28 @@ struct Oppgaversvar: Decodable {
         let streakNa: Int?
         let streakIFare: Bool?
         let oppgaver: [Oppgave]?
+        let belonninger: [Belonning]?
         var id: String { slug }
     }
     struct Oppgave: Decodable, Identifiable {
-        let navn: String?
+        let tittel: String
+        /// `pending`, `claimed` eller `approved`.
         let status: String?
-        var id: String { navn ?? UUID().uuidString }
+        let poeng: Int?
+        /// Knappen som huker av oppgaven. Backend slipper bare KidsChores-knapper
+        /// gjennom, så appen kan ikke be om noe annet enn dette.
+        let claim: String?
+        let approve: String?
+        var id: String { claim ?? tittel }
+    }
+
+    struct Belonning: Decodable, Identifiable {
+        let tittel: String
+        let cost: Int?
+        let harRad: Bool?
+        let status: String?
+        let claim: String?
+        var id: String { claim ?? tittel }
     }
 }
 
@@ -290,49 +312,13 @@ struct Oppgaverfane: View {
     let api: API
     @State private var svar: Oppgaversvar?
     @State private var feil: String?
+    @State private var jobber: Set<String> = []
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if let s = svar {
-                    ForEach(s.barn) { b in
-                        Kort {
-                            HStack {
-                                Text(b.navn).font(.subheadline.weight(.medium))
-                                    .foregroundStyle(Farge.tekst)
-                                Spacer()
-                                Text("\(b.poeng)").font(.title3.monospacedDigit())
-                                    .foregroundStyle(Farge.aksent)
-                            }
-                            HStack(spacing: 10) {
-                                Text("\(b.fullfortDaglig) gjort i dag")
-                                if let s = b.streakNa, s > 0 {
-                                    // Rekka er verdt å se når den er i fare — det er da
-                                    // den kan reddes.
-                                    Label("\(s) dager på rad",
-                                          systemImage: b.streakIFare == true ? "exclamationmark.circle" : "flame")
-                                        .foregroundStyle(b.streakIFare == true ? Farge.varm : Farge.svak)
-                                }
-                            }
-                            .font(.caption2).foregroundStyle(Farge.svak).padding(.top, 4)
-
-                            if let o = b.oppgaver, !o.isEmpty {
-                                Divider().background(Farge.kort2).padding(.vertical, 8)
-                                VStack(alignment: .leading, spacing: 5) {
-                                    ForEach(o.prefix(6)) { x in
-                                        HStack(spacing: 6) {
-                                            Image(systemName: x.status == "approved"
-                                                  ? "checkmark.circle.fill" : "circle")
-                                                .font(.caption2)
-                                                .foregroundStyle(x.status == "approved" ? Farge.aksent : Farge.svak)
-                                            Text(x.navn ?? "—").font(.caption)
-                                                .foregroundStyle(Farge.tekst).lineLimit(1)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    ForEach(s.barn) { b in barnekort(b) }
                     if s.barn.isEmpty {
                         Text("Ingen oppgaver å vise.").font(.footnote).foregroundStyle(Farge.svak)
                     }
@@ -344,11 +330,133 @@ struct Oppgaverfane: View {
                 }
             }
             .padding(16)
+            // Siste rad skal ikke ligge under fanelinja.
+            .padding(.bottom, 24)
         }
         .background(Farge.flate)
         .scrollIndicators(.hidden)
         .refreshable { await hent() }
         .task { await hent() }
+    }
+
+    private func barnekort(_ b: Oppgaversvar.Barn) -> some View {
+        let gjenstaar = (b.oppgaver ?? []).filter { $0.status == "pending" }.count
+        return Flate(aktiv: gjenstaar == 0 && !(b.oppgaver ?? []).isEmpty) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(b.navn).font(.title3.weight(.semibold)).foregroundStyle(Farge.tekst)
+                    Spacer()
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text("\(b.poeng)").font(.title2.monospacedDigit())
+                            .foregroundStyle(Farge.aksent).contentTransition(.numericText())
+                        Text("poeng").font(.caption2).foregroundStyle(Farge.dempet)
+                    }
+                }
+                HStack(spacing: 10) {
+                    Text("\(b.fullfortDaglig) gjort i dag")
+                    if let st = b.streakNa, st > 0 {
+                        // Rekka er verdt å se når den er i fare — det er da den kan reddes.
+                        Label("\(st) dager på rad",
+                              systemImage: b.streakIFare == true ? "exclamationmark.triangle.fill" : "flame.fill")
+                            .foregroundStyle(b.streakIFare == true ? Farge.varm : Farge.svak)
+                    }
+                }
+                .font(.caption).foregroundStyle(Farge.svak)
+                .padding(.top, 3)
+
+                if let o = b.oppgaver, !o.isEmpty {
+                    // Fremdriften først: «4 av 6» sier mer enn seks avkryssingsbokser.
+                    let gjort = o.count - gjenstaar
+                    VStack(spacing: 5) {
+                        Stolpe(andel: Double(gjort) / Double(max(1, o.count)),
+                               farge: gjenstaar == 0 ? Farge.ok : Farge.aksent, høyde: 5)
+                        HStack {
+                            Text(gjenstaar == 0 ? "Alt gjort" : "\(gjort) av \(o.count) gjort")
+                                .font(.system(size: 10))
+                                .foregroundStyle(gjenstaar == 0 ? Farge.ok : Farge.svak)
+                            Spacer()
+                        }
+                    }
+                    .padding(.top, 12)
+
+                    VStack(spacing: 7) {
+                        ForEach(o) { x in oppgaverad(x) }
+                    }
+                    .padding(.top, 10)
+                }
+
+                if let bel = (b.belonninger ?? []).filter({ $0.harRad == true }).prefix(3).map({ $0 }),
+                   !bel.isEmpty {
+                    Divider().background(Farge.strek).padding(.vertical, 11)
+                    Seksjonstittel(tekst: "Har råd til")
+                    // Bare det barnet faktisk har poeng til. En liste over alt man ikke
+                    // har råd til, er ikke motiverende — den er en prisliste.
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(bel) { r in
+                            HStack {
+                                Text(r.tittel).font(.caption).foregroundStyle(Farge.tekst)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text("\(r.cost ?? 0)").font(.caption.monospacedDigit())
+                                    .foregroundStyle(Farge.aksent)
+                            }
+                        }
+                    }
+                    .padding(.top, 6)
+                }
+            }
+            .padding(14)
+        }
+    }
+
+    /// Én oppgave. Trykk huker den av — det er det barnet gjør, og det er hele poenget
+    /// med å ha den på telefonen framfor på nettbrettet på kjøkkenet.
+    private func oppgaverad(_ x: Oppgaversvar.Oppgave) -> some View {
+        let gjort = x.status == "approved"
+        let venter = x.status == "claimed"
+        return Button {
+            guard let knapp = gjort ? nil : (venter ? x.approve : x.claim) else { return }
+            Kjenn.trykk()
+            Task { await hukAv(knapp, x.id) }
+        } label: {
+            HStack(spacing: 9) {
+                if jobber.contains(x.id) {
+                    ProgressView().controlSize(.mini).tint(Farge.dempet).frame(width: 18)
+                } else {
+                    Image(systemName: gjort ? "checkmark.circle.fill"
+                          : (venter ? "clock.badge.checkmark" : "circle"))
+                        .font(.system(size: 16))
+                        .foregroundStyle(gjort ? Farge.ok : (venter ? Farge.aksent : Farge.svak))
+                        .frame(width: 18)
+                }
+                Text(x.tittel)
+                    .font(.footnote)
+                    .foregroundStyle(gjort ? Farge.svak : Farge.tekst)
+                    .strikethrough(gjort, color: Farge.svak)
+                    .lineLimit(1)
+                Spacer()
+                if let p = x.poeng {
+                    Text("+\(p)").font(.caption2.monospacedDigit())
+                        .foregroundStyle(gjort ? Farge.svak : Farge.dempet)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(Trykkflate())
+        .disabled(gjort || jobber.contains(x.id))
+        .animation(.smooth(duration: 0.3), value: x.status)
+    }
+
+    private func hukAv(_ knapp: String, _ id: String) async {
+        jobber.insert(id)
+        defer { jobber.remove(id) }
+        do {
+            try await api.send("/api/hus/oppgave", ["knapp": knapp])
+            Kjenn.vellykket()
+            // KidsChores bruker et øyeblikk på å oppdatere sensorene sine.
+            try? await Task.sleep(for: .milliseconds(700))
+            await hent()
+        } catch { feil = error.localizedDescription }
     }
 
     private func hent() async {
