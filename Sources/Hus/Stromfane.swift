@@ -385,8 +385,8 @@ struct Oppgaverfane: View {
                     .padding(.top, 10)
                 }
 
-                if let bel = (b.belonninger ?? []).filter({ $0.harRad == true }).prefix(3).map({ $0 }),
-                   !bel.isEmpty {
+                let bel = Array((b.belonninger ?? []).filter { $0.harRad == true }.prefix(3))
+                if !bel.isEmpty {
                     Divider().background(Farge.strek).padding(.vertical, 11)
                     Seksjonstittel(tekst: "Har råd til")
                     // Bare det barnet faktisk har poeng til. En liste over alt man ikke
