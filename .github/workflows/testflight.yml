@@ -248,6 +248,8 @@ jobs:
             knips 8-hus-rom  -server localhost:8443 -token ci -skjerm hus -apnerom "Kjøkken"
             knips 9-strom    -server localhost:8443 -token ci -skjerm hus -fane strom
             knips 10-oppgaver -server localhost:8443 -token ci -skjerm hus -fane oppgaver
+            knips 11-oversikt -server localhost:8443 -token ci -skjerm hus -fane oversikt
+            knips 12-biler    -server localhost:8443 -token ci -skjerm hus -fane biler
           else
             echo "::warning::ingen stubbe — Huset ble ikke knipset"
           fi
