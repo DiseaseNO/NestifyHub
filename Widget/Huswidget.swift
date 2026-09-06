@@ -52,6 +52,21 @@ struct Bryterspørring: EntityQuery {
 /// Kjører i widget-prosessen, ikke i appen — appen er som regel lukket når man trykker.
 /// Den sender ønsket tilstand, ikke «veksle»: to raske trykk skal ende der brukeren
 /// tror, ikke tilbake der de startet fordi begge leste samme gamle verdi.
+/// Garasjeporten fra widgeten.
+///
+/// ⚠️ Ett trykk, ingen bekreftelse — widgets kan ikke spørre. Porten VEKSLER, så et
+/// feiltrykk lukker den like gjerne som den åpner. Den er derfor et eget valg man må
+/// slå på selv, ikke noe widgeten viser i utgangspunktet.
+struct Garasjeintent: AppIntent {
+    static var title: LocalizedStringResource = "Garasjeport"
+    static var openAppWhenRun = false
+
+    func perform() async throws -> some IntentResult {
+        try await Delt.garasje()
+        return .result()
+    }
+}
+
 struct Vekslintent: AppIntent {
     static var title: LocalizedStringResource = "Slå av eller på"
     /// Appen skal IKKE åpnes av et trykk på widgeten. Poenget er å slippe det.
@@ -241,12 +256,25 @@ struct Husvisning: View {
 
         case .garasje:
             if let åpen = b?.garasjeAapen {
-                Image(systemName: åpen ? "door.garage.open" : "door.garage.closed")
-                    .font(.system(size: 30))
-                    .foregroundStyle(åpen ? .orange : .secondary)
-                Text(åpen ? "Åpen" : "Lukket")
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(åpen ? .orange : .primary)
+                HStack(spacing: 8) {
+                    Image(systemName: åpen ? "door.garage.open" : "door.garage.closed")
+                        .font(.system(size: 24))
+                        .foregroundStyle(åpen ? .orange : .secondary)
+                    Text(åpen ? "Åpen" : "Lukket")
+                        .font(.headline)
+                        .foregroundStyle(åpen ? .orange : .primary)
+                }
+                Spacer(minLength: 4)
+                Button(intent: Garasjeintent()) {
+                    Text(åpen ? "Lukk porten" : "Åpne porten")
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .background(Color.white.opacity(0.12))
+                .foregroundStyle(.primary)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             } else {
                 Text("Ukjent").font(.headline).foregroundStyle(.secondary)
                 Text("ingen kontakt med porten").font(.caption2).foregroundStyle(.tertiary)

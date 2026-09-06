@@ -145,6 +145,41 @@ enum Delt {
         }
     }
 
+    /// Pulser garasjeporten. Egen funksjon fordi ruta er en annen: den tar ingen
+    /// parametre, og backend bestemmer hva «puls» betyr.
+    static func garasje() async throws {
+        guard let t = tilgang(), let u = URL(string: "https://\(t.vert)/api/hus/garasje") else {
+            throw Styrefeil.ikkeKlar
+        }
+        var rq = URLRequest(url: u)
+        rq.httpMethod = "POST"
+        rq.setValue("Bearer \(t.token)", forHTTPHeaderField: "Authorization")
+        rq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        rq.httpBody = Data("{}".utf8)
+        rq.timeoutInterval = 10
+        let (_, svar) = try await URLSession.shared.data(for: rq)
+        guard let h = svar as? HTTPURLResponse, (200..<300).contains(h.statusCode) else {
+            throw Styrefeil.avvist
+        }
+    }
+
+    /// Huker av, godkjenner eller avslår oppgaver. Én eller mange i samme kall.
+    static func oppgave(_ knapper: [String]) async throws {
+        guard let t = tilgang(), let u = URL(string: "https://\(t.vert)/api/hus/oppgave") else {
+            throw Styrefeil.ikkeKlar
+        }
+        var rq = URLRequest(url: u)
+        rq.httpMethod = "POST"
+        rq.setValue("Bearer \(t.token)", forHTTPHeaderField: "Authorization")
+        rq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        rq.httpBody = try JSONSerialization.data(withJSONObject: ["knapp": knapper])
+        rq.timeoutInterval = 25
+        let (_, svar) = try await URLSession.shared.data(for: rq)
+        guard let h = svar as? HTTPURLResponse, (200..<300).contains(h.statusCode) else {
+            throw Styrefeil.avvist
+        }
+    }
+
     enum Styrefeil: LocalizedError {
         case ikkeKlar, avvist
         var errorDescription: String? {

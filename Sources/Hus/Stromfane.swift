@@ -295,6 +295,8 @@ struct Oppgaversvar: Decodable {
         /// gjennom, så appen kan ikke be om noe annet enn dette.
         let claim: String?
         let approve: String?
+        /// Å avslå er en egen handling, ikke fravær av godkjenning.
+        let avslaa: String?
         var id: String { claim ?? tittel }
     }
 
@@ -304,6 +306,8 @@ struct Oppgaversvar: Decodable {
         let harRad: Bool?
         let status: String?
         let claim: String?
+        let approve: String?
+        let avslaa: String?
         var id: String { claim ?? tittel }
     }
 }
@@ -318,6 +322,9 @@ struct Oppgaverfane: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if let s = svar {
+                    // Det som venter på en voksen, øverst. Ellers må man lete etter det
+                    // i hvert barnekort, og det som venter er hele grunnen til å åpne.
+                    if !ventende(s).isEmpty { godkjenningskort(s) }
                     ForEach(s.barn) { b in barnekort(b) }
                     if s.barn.isEmpty {
                         Text("Ingen oppgaver å vise.").font(.footnote).foregroundStyle(Farge.svak)
@@ -337,6 +344,117 @@ struct Oppgaverfane: View {
         .scrollIndicators(.hidden)
         .refreshable { await hent() }
         .task { await hent() }
+    }
+
+    /// Alt som er meldt gjort og venter på en voksen.
+    private struct Venter: Identifiable {
+        let id: String
+        let barn: String
+        let hva: String
+        let verdi: String
+        let godkjenn: String
+        let avslaa: String?
+    }
+
+    private func ventende(_ s: Oppgaversvar) -> [Venter] {
+        s.barn.flatMap { b -> [Venter] in
+            let o = (b.oppgaver ?? []).filter { $0.status == "claimed" }.compactMap { x -> Venter? in
+                guard let g = x.approve else { return nil }
+                return Venter(id: g, barn: b.navn, hva: x.tittel,
+                              verdi: "+\(x.poeng ?? 0)", godkjenn: g, avslaa: x.avslaa)
+            }
+            let r = (b.belonninger ?? []).filter { $0.status == "claimed" }.compactMap { x -> Venter? in
+                guard let g = x.approve else { return nil }
+                return Venter(id: g, barn: b.navn, hva: x.tittel,
+                              verdi: "−\(x.cost ?? 0)", godkjenn: g, avslaa: x.avslaa)
+            }
+            return o + r
+        }
+    }
+
+    private func godkjenningskort(_ s: Oppgaversvar) -> some View {
+        let v = ventende(s)
+        return Flate(aktiv: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Seksjonstittel(tekst: "Venter på godkjenning")
+                    Spacer()
+                    Text("\(v.count)").font(.system(size: 10).monospacedDigit())
+                        .foregroundStyle(Farge.aksent)
+                }
+                VStack(spacing: 8) {
+                    ForEach(v) { x in venterad(x) }
+                }
+                .padding(.top, 10)
+
+                Button {
+                    Kjenn.trykk()
+                    Task { await kjor(v.map(\.godkjenn), "alle") }
+                } label: {
+                    HStack(spacing: 7) {
+                        if jobber.contains("alle") {
+                            ProgressView().controlSize(.mini).tint(Farge.dempet)
+                        } else {
+                            Image(systemName: "checkmark.circle.fill").font(.caption)
+                        }
+                        Text("Godkjenn alle (\(v.count))").font(.footnote.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 11)
+                    .background(Farge.ok.opacity(0.18)).foregroundStyle(Farge.ok)
+                    .clipShape(RoundedRectangle(cornerRadius: Hus.radiusLiten, style: .continuous))
+                }
+                .buttonStyle(Trykkflate())
+                .disabled(!jobber.isEmpty)
+                .padding(.top, 11)
+            }
+            .padding(14)
+        }
+    }
+
+    private func venterad(_ x: Venter) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(x.hva).font(.footnote).foregroundStyle(Farge.tekst).lineLimit(1)
+                Text("\(x.barn) · \(x.verdi)").font(.system(size: 10)).foregroundStyle(Farge.svak)
+            }
+            Spacer()
+            if jobber.contains(x.id) {
+                ProgressView().controlSize(.mini).tint(Farge.dempet)
+            } else {
+                svarknapp("checkmark", Farge.ok) { Task { await kjor([x.godkjenn], x.id) } }
+                // Avslag finnes bare hvis KidsChores har en knapp for det. Vi later ikke
+                // som om vi kan noe vi ikke kan.
+                if let a = x.avslaa {
+                    svarknapp("xmark", Farge.avvik) { Task { await kjor([a], x.id) } }
+                }
+            }
+        }
+    }
+
+    private func svarknapp(_ ikon: String, _ farge: Color,
+                           _ handling: @escaping () -> Void) -> some View {
+        Button {
+            Kjenn.trykk()
+            handling()
+        } label: {
+            Image(systemName: ikon).font(.system(size: 13, weight: .bold))
+                .frame(width: 34, height: 30)
+                .background(farge.opacity(0.16)).foregroundStyle(farge)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(Trykkflate())
+        .disabled(!jobber.isEmpty)
+    }
+
+    private func kjor(_ knapper: [String], _ merke: String) async {
+        jobber.insert(merke)
+        defer { jobber.remove(merke) }
+        do {
+            try await api.send("/api/hus/oppgave", ["knapp": knapper])
+            Kjenn.vellykket()
+            try? await Task.sleep(for: .milliseconds(900))
+            await hent()
+        } catch { feil = error.localizedDescription }
     }
 
     private func barnekort(_ b: Oppgaversvar.Barn) -> some View {
