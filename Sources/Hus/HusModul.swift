@@ -13,25 +13,34 @@ struct HusModul: View {
     let api: API
     @State private var faner = Faner()
     @State private var valgtFane = "hjem"
-    @State private var visFaneoppsett = false
+    /// Hvilket ark som er åpent.
+    ///
+    /// ÉN tilstand, ikke tre. `.sheet` på samme visning oppfører seg uforutsigbart når
+    /// den står flere ganger — det var slik trykk på et romkort ikke gjorde noe: arket
+    /// ble aldri festet, og tilstanden ble satt uten at noen viste den.
+    @State private var ark: Ark?
+
+    enum Ark: Identifiable {
+        case faner
+        case kort
+        case rom(navn: String, entiteter: [String])
+
+        var id: String {
+            switch self {
+            case .faner: "faner"
+            case .kort: "kort"
+            case .rom(let n, _): "rom:" + n
+            }
+        }
+    }
     @State private var status: Husstatus?
     @State private var modell: Husmodell?
     @State private var feil: String?
     @State private var jobber: Set<String> = []
-    @State private var visOppsett = false
     @State private var oppsett = Oppsett(område: "huskort", standard: ["strom", "scener", "garasje"])
     @State private var multi = Multikort()
     @State private var entiteter: [Husentitet] = []
     @State private var bekreftPort = false
-    /// Kortet som er åpnet. Egen type framfor en `Bool` + et navn: to tilstander som må
-    /// stemme overens, gjør at arket kan åpnes tomt.
-    @State private var aapnet: Aapnetkort?
-
-    struct Aapnetkort: Identifiable {
-        let id: String
-        let tittel: String
-        let entiteter: [String]
-    }
     @Environment(\.scenePhase) private var scenefase
 
     /// Kort-id-ene i visningsrekkefølge. Rommene kommer fra serveren, så lista er ikke
@@ -53,6 +62,9 @@ struct HusModul: View {
             }
         }
         .tint(Farge.aksent)
+        // Arket henger på TabView-en, ikke på hver fane. Festet per fane ville to
+        // visninger bundet til samme tilstand kappes om å vise det samme.
+        .sheet(item: $ark) { arkvisning($0) }
     }
 
     /// Innholdet i én fane. Rom- og egen-faner er samme visning med ulik kilde til
@@ -80,12 +92,28 @@ struct HusModul: View {
                 .toolbarBackground(Farge.flate, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button { visFaneoppsett = true } label: {
+                        Button { ark = .faner } label: {
                             Image(systemName: "slider.horizontal.3")
                         }
                     }
                 }
-                .sheet(isPresented: $visFaneoppsett) { faneoppsett }
+        }
+    }
+
+    @ViewBuilder
+    private func arkvisning(_ a: Ark) -> some View {
+        switch a {
+        case .faner:
+            faneoppsett
+        case .kort:
+            if let s = status {
+                Kortoppsett(oppsett: oppsett, multi: multi,
+                            kort: alleKort(s), entiteter: entiteter)
+            }
+        case .rom(let navn, let ider):
+            Romoverlay(tittel: navn,
+                       entiteter: ider.compactMap { id in entiteter.first { $0.id == id } },
+                       styr: styrEntitet, jobber: jobber)
         }
     }
 
@@ -157,17 +185,10 @@ struct HusModul: View {
             .toolbarBackground(Farge.flate, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { visFaneoppsett = true } label: { Image(systemName: "rectangle.3.group") }
+                    Button { ark = .faner } label: { Image(systemName: "rectangle.3.group") }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { visOppsett = true } label: { Image(systemName: "slider.horizontal.3") }
-                }
-            }
-            .sheet(isPresented: $visFaneoppsett) { faneoppsett }
-            .sheet(isPresented: $visOppsett) {
-                if let s = status {
-                    Kortoppsett(oppsett: oppsett, multi: multi,
-                                kort: alleKort(s), entiteter: entiteter)
+                    Button { ark = .kort } label: { Image(systemName: "slider.horizontal.3") }
                 }
             }
             .alert("Garasjeport", isPresented: $bekreftPort) {
@@ -323,7 +344,7 @@ struct HusModul: View {
         Button {
             // Flisa åpner rommet framfor å veksle lyset. Å skru av fem lys med ett trykk
             // er lett gjort ved et uhell; å åpne et ark er det ikke.
-            aapnet = Aapnetkort(id: r.navn, tittel: r.navn, entiteter: alleIRom(r.navn))
+            ark = .rom(navn: r.navn, entiteter: alleIRom(r.navn))
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 Text(r.navn).font(.caption.weight(.medium)).lineLimit(2)
@@ -495,7 +516,7 @@ struct HusModul: View {
         // `contentShape` + `onTapGesture` på rammen lar bryteren ta sitt eget trykk først.
         .contentShape(Rectangle())
         .onTapGesture {
-            aapnet = Aapnetkort(id: r.navn, tittel: r.navn, entiteter: alleIRom(r.navn))
+            ark = .rom(navn: r.navn, entiteter: alleIRom(r.navn))
         }
     }
 
