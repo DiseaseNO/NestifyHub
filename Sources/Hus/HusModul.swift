@@ -201,7 +201,14 @@ struct HusModul: View {
                      ? "Lukke garasjeporten?" : "Åpne garasjeporten?")
             }
             .refreshable { await hent() }
-            .task { await hent() }
+            .task {
+                await hent()
+                // CI åpner et rom ved oppstart, så skjermbildet dekker dimmeren og
+                // varmen — en visning som ellers krever et trykk.
+                if let r = Testskjerm.apneRom, ark == nil {
+                    ark = .rom(navn: r, entiteter: alleIRom(r))
+                }
+            }
             .onChange(of: scenefase) { _, ny in if ny == .active { Task { await hent() } } }
         }
     }

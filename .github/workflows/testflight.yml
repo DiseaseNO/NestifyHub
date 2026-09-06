@@ -157,19 +157,27 @@ jobs:
             echo "HJEMME=" >> "$GITHUB_ENV"
           fi
 
+      # Datasettet legges ALLTID ut, også når hjemmeserveren svarer. Huset knipses mot
+      # dette, ikke mot huset: enheten CI bruker skal ikke kunne lese hvilke lys som står
+      # på. Verdiene er dessuten sanert — formen er ekte, tallene er ikke.
       - name: Legg ut datasettet lokalt
         env:
-          CI_DATA: ${{ secrets.CI_DATA }}
+          CI_DATA_1: ${{ secrets.CI_DATA_1 }}
+          CI_DATA_2: ${{ secrets.CI_DATA_2 }}
+          CI_DATA_3: ${{ secrets.CI_DATA_3 }}
+          CI_DATA_4: ${{ secrets.CI_DATA_4 }}
         run: |
-          [ -z "$HJEMME" ] || { echo "hopper over — vi bruker den ekte serveren"; exit 0; }
+          # Delt i biter fordi én GitHub-hemmelighet tar 48 kB, og datasettet er større.
           # `secrets` kan ikke brukes i en `if:`-betingelse, så sjekken må stå her.
-          [ -n "$CI_DATA" ] || { echo "::warning::CI_DATA mangler — appen får ingen data"; exit 0; }
-          printf '%s' "$CI_DATA" | base64 --decode | gunzip > ci-data.json
+          printf '%s%s%s%s' "$CI_DATA_1" "$CI_DATA_2" "$CI_DATA_3" "$CI_DATA_4" > ci-data.b64
+          [ -s ci-data.b64 ] || { echo "::warning::CI_DATA_* mangler — ingen stubbe"; exit 0; }
+          base64 --decode < ci-data.b64 | gunzip > ci-data.json
           python3 -c "import json;d=json.load(open('ci-data.json'));print('datasett:', ', '.join(d))"
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
             -keyout ci-nokkel.pem -out ci-cert.pem \
             -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost" 2>/dev/null
           python3 scripts/ci_stubbe.py ci-data.json 8443 ci-cert.pem ci-nokkel.pem &
+          echo "STUBBE=1" >> "$GITHUB_ENV"
           for i in $(seq 1 20); do
             curl -ks https://localhost:8443/api/health >/dev/null && break
             sleep 1
@@ -229,6 +237,17 @@ jobs:
             knips 4-spiller  -server "$VERT" -token "$TOKEN" -skjerm naa -spillerdetalj 1
             knips 5-sporsmal -server "$VERT" -token "$TOKEN" -skjerm naa -sporsmal 1
             knips 6-tropp    -server "$VERT" -token "$TOKEN" -skjerm naa -tropp 1
+          fi
+
+          # Huset mot stubben. Uten dette bygde vi Huset blindt — og det gikk galt: koden
+          # var riktig, men arket var ikke festet, så et trykk gjorde ingenting. En
+          # kompilator ser ingen forskjell på det og fungerende kode.
+          if [ -n "${STUBBE:-}" ]; then
+            knips 7-hus      -server localhost:8443 -token ci -skjerm hus
+            # Åpner romarket ved oppstart, så dimmeren og varmen kommer med.
+            knips 8-hus-rom  -server localhost:8443 -token ci -skjerm hus -apnerom "Kjøkken"
+          else
+            echo "::warning::ingen stubbe — Huset ble ikke knipset"
           fi
 
           xcrun simctl spawn "$UDID" log show --style compact --last 5m \

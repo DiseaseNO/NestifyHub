@@ -20,6 +20,10 @@ struct NestifyHubApp: App {
             Group {
                 if !api.erKlar {
                     Paring(api: api)
+                } else if Testskjerm.hus {
+                    // Huset kan ikke knipses gjennom FPL-veien, og det var nettopp der
+                    // en feil fikk stå: koden var riktig, men arket var ikke festet.
+                    HusModul(api: api)
                 } else if let start = Testskjerm.valgt {
                     // CI hopper rett inn i én skjerm; ellers ville skjermbildene krevd
                     // simulerte trykk, som er skjørt og trenger vedlikehold.
@@ -81,6 +85,25 @@ enum Testskjerm {
         UserDefaults.standard.bool(forKey: "tropp")
         #else
         false
+        #endif
+    }
+
+    /// Åpner Huset direkte, `-skjerm hus`.
+    static var hus: Bool {
+        #if DEBUG
+        UserDefaults.standard.string(forKey: "skjerm") == "hus"
+        #else
+        false
+        #endif
+    }
+
+    /// Åpner romarket på dette rommet ved oppstart, `-apnerom "Kjøkken"`. Uten dette
+    /// måtte skjermbildet av dimmeren komme av et simulert trykk.
+    static var apneRom: String? {
+        #if DEBUG
+        UserDefaults.standard.string(forKey: "apnerom")
+        #else
+        nil
         #endif
     }
 
