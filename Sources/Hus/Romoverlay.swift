@@ -59,15 +59,18 @@ struct Innhold: View {
                         }
                     }
                     if !lys.isEmpty {
-                        seksjon("Lys", lys.filter(\.paa).count) { ForEach(lys) { lysrad($0) } }
+                        seksjon("Lys", lys.filter(\.paa).count, lys.count) {
+                            ForEach(lys) { lysrad($0) }
+                        }
                     }
                     if !klima.isEmpty {
-                        seksjon("Varme", klima.filter { $0.handling == "heating" }.count) {
+                        seksjon("Varme", klima.filter { $0.handling == "heating" }.count,
+                                klima.count) {
                             ForEach(klima) { klimarad($0) }
                         }
                     }
                     if !brytere.isEmpty {
-                        seksjon("Brytere", brytere.filter(\.paa).count) {
+                        seksjon("Brytere", brytere.filter(\.paa).count, brytere.count) {
                             ForEach(brytere) { bryterrad($0) }
                         }
                     }
@@ -85,14 +88,15 @@ struct Innhold: View {
     }
 
     @ViewBuilder
-    private func seksjon<Innhold: View>(_ navn: String, _ antall: Int,
+    private func seksjon<Innhold: View>(_ navn: String, _ antall: Int, _ av: Int,
                                         @ViewBuilder _ innhold: () -> Innhold) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack {
                 Seksjonstittel(tekst: navn)
                 Spacer()
-                Text("\(antall)").font(.system(size: 10).monospacedDigit())
-                    .foregroundStyle(Farge.svak)
+                // «0» alene sier ikke hva nullen er. «0 av 2 på» gjør det.
+                Text("\(antall) av \(av) på").font(.system(size: 10).monospacedDigit())
+                    .foregroundStyle(antall > 0 ? Farge.aksent : Farge.svak)
             }
             VStack(spacing: 9) { innhold() }
         }
