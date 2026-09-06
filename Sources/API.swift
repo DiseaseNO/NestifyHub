@@ -33,7 +33,14 @@ final class API {
     private(set) var token: String? = Nøkkelring.les("token")
     var erKlar: Bool { vert != nil && token != nil }
 
-    init() { API.delt = self }
+    init() {
+        API.delt = self
+        // Appen kan være paret fra før denne delingen fantes. Da legges den på plass nå,
+        // så widgeten virker uten at man må pare på nytt.
+        if let vert, let token, Delt.tilgang() == nil {
+            Delt.lagre(Delt.Tilgang(vert: vert, token: token))
+        }
+    }
 
     // MARK: paring
 
@@ -59,11 +66,16 @@ final class API {
         Nøkkelring.skriv(p.token, for: "token")
         self.vert = renVert
         self.token = p.token
+        // Widgeten er en egen prosess og når ikke appens Keychain. Uten dette kan den
+        // vise tall, men ikke gjøre noe.
+        Delt.lagre(Delt.Tilgang(vert: renVert, token: p.token))
     }
 
     func glemEnhet() {
         Nøkkelring.slett("vert"); Nøkkelring.slett("token")
         vert = nil; token = nil
+        // Glemmer man enheten, skal widgeten heller ikke kunne noe mer.
+        Delt.lagre(nil)
     }
 
     // MARK: kall

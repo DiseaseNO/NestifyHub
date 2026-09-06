@@ -14,7 +14,7 @@ import AppIntents
 // MARK: - Hva widgeten kan vise
 
 enum Visning: String, AppEnum {
-    case effekt, kostnad, lys, rom, garasje
+    case effekt, kostnad, lys, rom, garasje, bryter
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Innhold"
     static var caseDisplayRepresentations: [Visning: DisplayRepresentation] = [
@@ -23,7 +23,53 @@ enum Visning: String, AppEnum {
         .lys:     "Lys som står på",
         .rom:     "Ett rom",
         .garasje: "Garasjeport",
+        .bryter:  "Bryter du kan trykke på",
     ]
+}
+
+/// Tingene widgeten kan slå av og på — lys og brytere fra øyeblikksbildet.
+struct Bryterentitet: AppEntity {
+    let id: String
+    let navn: String
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Bryter"
+    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(navn)") }
+    static var defaultQuery = Bryterspørring()
+}
+
+struct Bryterspørring: EntityQuery {
+    private func alle() -> [Bryterentitet] {
+        (Delt.lest()?.brytere ?? []).map { Bryterentitet(id: $0.id, navn: $0.navn) }
+    }
+    func entities(for ider: [Bryterentitet.ID]) async throws -> [Bryterentitet] {
+        alle().filter { ider.contains($0.id) }
+    }
+    func suggestedEntities() async throws -> [Bryterentitet] { alle() }
+}
+
+/// Selve trykket.
+///
+/// Kjører i widget-prosessen, ikke i appen — appen er som regel lukket når man trykker.
+/// Den sender ønsket tilstand, ikke «veksle»: to raske trykk skal ende der brukeren
+/// tror, ikke tilbake der de startet fordi begge leste samme gamle verdi.
+struct Vekslintent: AppIntent {
+    static var title: LocalizedStringResource = "Slå av eller på"
+    /// Appen skal IKKE åpnes av et trykk på widgeten. Poenget er å slippe det.
+    static var openAppWhenRun = false
+
+    @Parameter(title: "Entitet") var entitet: String
+    @Parameter(title: "Domene") var domene: String
+    @Parameter(title: "På") var paa: Bool
+
+    init() {}
+    init(entitet: String, domene: String, paa: Bool) {
+        self.entitet = entitet; self.domene = domene; self.paa = paa
+    }
+
+    func perform() async throws -> some IntentResult {
+        try await Delt.styr(entitet: entitet, domene: domene, paa: paa)
+        return .result()
+    }
 }
 
 /// Rommene, hentet fra øyeblikksbildet.
@@ -61,6 +107,10 @@ struct Husvalg: WidgetConfigurationIntent {
     /// krever en parameter-oppsummering som ikke er verdt kompleksiteten her.
     @Parameter(title: "Hvilket rom")
     var rom: Romvalg?
+
+    /// Brukes bare når `visning == .bryter`.
+    @Parameter(title: "Hvilken bryter")
+    var bryter: Bryterentitet?
 }
 
 // MARK: - Tidslinje
@@ -75,7 +125,8 @@ struct Husleverandør: AppIntentTimelineProvider {
     private var eksempel: Delt.Husbilde {
         .init(effektWatt: 2400, lysPaa: 5, kroner: 1.24, oppdatert: Date(),
               rom: [.init(navn: "Stue", lysPaa: 1, lysTotalt: 1, temp: 21.5, klima: "varmer")],
-              garasjeAapen: false)
+              garasjeAapen: false,
+              brytere: [.init(id: "light.stue_taklys", navn: "Stue Taklys", paa: true, domene: "light")])
     }
 
     func placeholder(in context: Context) -> Husoppføring {
@@ -166,6 +217,28 @@ struct Husvisning: View {
                 Text("Hold på widgeten og velg rom").font(.caption2).foregroundStyle(.tertiary)
             }
 
+        case .bryter:
+            if let valgt = oppføring.valg.bryter?.id,
+               let b = b?.brytere.first(where: { $0.id == valgt }) {
+                Text(b.navn).font(.caption.weight(.medium)).lineLimit(2)
+                Spacer(minLength: 4)
+                Button(intent: Vekslintent(entitet: b.id, domene: b.domene, paa: !b.paa)) {
+                    HStack(spacing: 6) {
+                        Image(systemName: b.paa ? "power.circle.fill" : "power.circle")
+                        Text(b.paa ? "På" : "Av").font(.callout.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .background(b.paa ? Color.orange.opacity(0.25) : Color.white.opacity(0.1))
+                .foregroundStyle(b.paa ? .orange : .secondary)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            } else {
+                Text("Ingen bryter valgt").font(.headline).foregroundStyle(.secondary)
+                Text("Hold på widgeten og velg").font(.caption2).foregroundStyle(.tertiary)
+            }
+
         case .garasje:
             if let åpen = b?.garasjeAapen {
                 Image(systemName: åpen ? "door.garage.open" : "door.garage.closed")
@@ -199,7 +272,7 @@ struct Huswidget: Widget {
             Husvisning(oppføring: $0)
         }
         .configurationDisplayName("Huset")
-        .description("Velg selv: forbruk, kostnad, lys, et rom eller garasjeporten.")
+        .description("Velg selv: forbruk, kostnad, lys, et rom, garasjeporten — eller en bryter du kan trykke på.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
     }
 }
