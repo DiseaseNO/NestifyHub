@@ -104,7 +104,7 @@ struct Innhold: View {
     /// Nivået som vises er snittet av de som står på — det er det nærmeste «rommets
     /// lysstyrke» kommer når lampene kan stå på hver sitt nivå.
     private var rommet: some View {
-        let påNå = lys.contains(\.paa)
+        let påNå = lys.contains { $0.paa }
         return Flate(aktiv: påNå, radius: Hus.radiusLiten) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
