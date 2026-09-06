@@ -340,8 +340,8 @@ struct Oppgaverfane: View {
     }
 
     private func barnekort(_ b: Oppgaversvar.Barn) -> some View {
-        let gjenstaar = (b.oppgaver ?? []).filter { $0.status == "pending" }.count
-        return Flate(aktiv: gjenstaar == 0 && !(b.oppgaver ?? []).isEmpty) {
+        let alt = !(b.oppgaver ?? []).isEmpty && b.fullfortDaglig >= (b.oppgaver ?? []).count
+        return Flate(aktiv: alt) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(b.navn).font(.title3.weight(.semibold)).foregroundStyle(Farge.tekst)
@@ -353,7 +353,6 @@ struct Oppgaverfane: View {
                     }
                 }
                 HStack(spacing: 10) {
-                    Text("\(b.fullfortDaglig) gjort i dag")
                     if let st = b.streakNa, st > 0 {
                         // Rekka er verdt å se når den er i fare — det er da den kan reddes.
                         Label("\(st) dager på rad",
@@ -365,15 +364,18 @@ struct Oppgaverfane: View {
                 .padding(.top, 3)
 
                 if let o = b.oppgaver, !o.isEmpty {
-                    // Fremdriften først: «4 av 6» sier mer enn seks avkryssingsbokser.
-                    let gjort = o.count - gjenstaar
+                    // Dagens teller, ikke statusfeltet: KidsChores nullstiller status ved
+                    // midnatt, så en oppgave gjort i morges står som «pending» igjen.
+                    // Stolpen sa derfor «0 av 8» rett over teksten «2 gjort i dag».
+                    let gjort = min(b.fullfortDaglig, o.count)
                     VStack(spacing: 5) {
                         Stolpe(andel: Double(gjort) / Double(max(1, o.count)),
-                               farge: gjenstaar == 0 ? Farge.ok : Farge.aksent, høyde: 5)
+                               farge: gjort >= o.count ? Farge.ok : Farge.aksent, høyde: 5)
                         HStack {
-                            Text(gjenstaar == 0 ? "Alt gjort" : "\(gjort) av \(o.count) gjort")
+                            Text(gjort >= o.count ? "Alt gjort i dag"
+                                                  : "\(gjort) av \(o.count) gjort i dag")
                                 .font(.system(size: 10))
-                                .foregroundStyle(gjenstaar == 0 ? Farge.ok : Farge.svak)
+                                .foregroundStyle(gjort >= o.count ? Farge.ok : Farge.svak)
                             Spacer()
                         }
                     }

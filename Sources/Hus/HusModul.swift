@@ -40,6 +40,9 @@ struct HusModul: View {
     @State private var oppsett = Oppsett(område: "huskort", standard: ["strom", "scener", "garasje"])
     @State private var multi = Multikort()
     @State private var entiteter: [Husentitet] = []
+    /// Når tallene sist kom inn. En skjerm som viser et gammelt tall uten å si det, er
+    /// verre enn en tom skjerm — man tror den er live.
+    @State private var hentet: Date?
     @State private var entiteterFeil: String?
     @State private var modellFeil: String?
     @State private var bekreftPort = false
@@ -227,7 +230,7 @@ struct HusModul: View {
                 catch { modellFeil = error.localizedDescription }
             }
             let s = try await api.hent(Husstatus.self, "/api/hus/status")
-            status = s; feil = nil
+            status = s; feil = nil; hentet = Date()
             // Entitetene trengs både til multikortene og til velgeren. Feiler kallet,
             // beholder vi de gamle: et kort som blir tomt fordi ett kall glapp, ser ut
             // som om noe er slettet.
@@ -364,7 +367,10 @@ struct HusModul: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
                     Nøkkeltall(verdi: kw.map { String(format: "%.1f", $0) } ?? "–",
-                               enhet: "kW", etikett: "i huset nå", stor: true)
+                               enhet: "kW",
+                               etikett: hentet.map { "oppdatert \($0.formatted(.relative(presentation: .numeric)))" }
+                                        ?? "i huset nå",
+                               stor: true)
                     Spacer()
                     VStack(alignment: .trailing, spacing: 6) {
                         if let w = s.effekt_watt, let p = s.kr_per_kwh {
@@ -452,10 +458,13 @@ struct HusModul: View {
         let åpen = s.garasje?.aapen == true
         return Flate(aktiv: åpen) {
             HStack(spacing: 14) {
-                Image(systemName: åpen ? "door.garage.open" : "door.garage.closed")
-                    .font(.system(size: 26))
-                    .foregroundStyle(åpen ? Farge.aksent : Farge.dempet)
-                    .frame(width: 40)
+                ZStack {
+                    Circle().fill(åpen ? Farge.aksent.opacity(0.16) : Farge.kort2)
+                    Image(systemName: åpen ? "door.garage.open" : "door.garage.closed")
+                        .font(.system(size: 17))
+                        .foregroundStyle(åpen ? Farge.aksent : Farge.dempet)
+                }
+                .frame(width: 40, height: 40)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Garasjeport").font(.subheadline.weight(.medium))
                         .foregroundStyle(Farge.tekst)
@@ -519,13 +528,6 @@ struct HusModul: View {
                         }
                     }
                     Spacer(minLength: 8)
-                    // Hvor sterkt rommet lyser, ikke bare at det lyser. Fyller samtidig
-                    // et midtfelt som ellers sto tomt i hver eneste flis.
-                    if på, let niva = lysnivaa(r.navn) {
-                        Stolpe(andel: niva, høyde: 4)
-                            .padding(.bottom, 8)
-                            .transition(.opacity)
-                    }
                     Text(r.navn)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Farge.tekst)
@@ -549,9 +551,14 @@ struct HusModul: View {
                         }
                     }
                     .padding(.top, 3)
+                    // Hvor sterkt rommet lyser, ikke bare AT det lyser. Nederst, så
+                    // romnavnene står på linje enten rommet kan dimmes eller ei.
+                    if på, let niva = lysnivaa(r.navn) {
+                        Stolpe(andel: niva, høyde: 3).padding(.top, 7)
+                    }
                 }
                 .padding(13)
-                .frame(height: 122, alignment: .topLeading)
+                .frame(height: 116, alignment: .topLeading)
             }
         }
         .buttonStyle(Trykkflate())
