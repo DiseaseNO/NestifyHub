@@ -540,7 +540,11 @@ struct HusModul: View {
                             }
                         }
                     }
-                    Spacer(minLength: 8)
+                    Spacer(minLength: 6)
+                    // Navn og tall får FAST høyde. Uten det bestemmer innholdet hvor
+                    // teksten havner, og to fliser ved siden av hverandre fikk navnet i
+                    // ulik høyde — det ene som er umulig å overse når man først ser det.
+                    VStack(alignment: .leading, spacing: 3) {
                     Text(r.navn)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Farge.tekst)
@@ -563,19 +567,17 @@ struct HusModul: View {
                                 .foregroundStyle(k == "varmer" ? Farge.varm : Farge.kjol)
                         }
                     }
-                    .padding(.top, 3)
-                    // Hvor sterkt rommet lyser, ikke bare AT det lyser.
-                    //
-                    // Plassen er satt av ALLTID. Uten det flyttet stolpen innholdet
-                    // oppover i akkurat de flisene som kunne dimmes, og romnavnene sto
-                    // i ulik høyde ved siden av hverandre.
+                    }
+                    .frame(height: 42, alignment: .bottomLeading)
+                    // Hvor sterkt rommet lyser, ikke bare AT det lyser. Plassen er satt
+                    // av alltid, så en flis som kan dimmes ikke blir høyere enn naboen.
                     Group {
                         if på, let niva = lysnivaa(r.navn) {
                             Stolpe(andel: niva, høyde: 3)
                         }
                     }
                     .frame(height: 3)
-                    .padding(.top, 7)
+                    .padding(.top, 8)
                 }
                 .padding(13)
                 .frame(height: 116, alignment: .topLeading)
