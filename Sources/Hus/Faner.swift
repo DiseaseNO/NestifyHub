@@ -20,13 +20,17 @@ struct Fane: Codable, Identifiable, Equatable {
     /// Entitets-id-ene når `slag == .egen`.
     var entiteter: [String]
 
-    enum Slag: String, Codable { case hjem, strom, oppgaver, rom, egen }
+    enum Slag: String, Codable { case hjem, strom, oppgaver, rom, egen, oversikt, biler }
 
     /// De faste. `id` er nøkkelen rekkefølge og av/på lagres under, og skal aldri endres.
+    /// Speiler nettbrettets faner. Kamera er bevisst utelatt: rollen appen bruker har
+    /// ikke kameratilgang, og CameraRelay er en egen app for nettopp det.
     static let faste: [Fane] = [
         Fane(id: "hjem", navn: "Huset", ikon: "house", slag: .hjem, rom: nil, entiteter: []),
+        Fane(id: "oversikt", navn: "Oversikt", ikon: "square.text.square", slag: .oversikt, rom: nil, entiteter: []),
         Fane(id: "strom", navn: "Strøm", ikon: "bolt", slag: .strom, rom: nil, entiteter: []),
         Fane(id: "oppgaver", navn: "Oppgaver", ikon: "checklist", slag: .oppgaver, rom: nil, entiteter: []),
+        Fane(id: "biler", navn: "Bilene", ikon: "car", slag: .biler, rom: nil, entiteter: []),
     ]
 }
 

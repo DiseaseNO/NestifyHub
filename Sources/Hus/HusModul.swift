@@ -78,6 +78,8 @@ struct HusModul: View {
     private func fanevisning(_ f: Fane) -> some View {
         switch f.slag {
         case .hjem:     hjemfane
+        case .oversikt: ramme(f) { Hjemfane(api: api) }
+        case .biler:    ramme(f) { Bilfane(api: api) }
         case .strom:    ramme(f) { Stromfane(api: api) }
         case .oppgaver: ramme(f) { Oppgaverfane(api: api) }
         case .rom:      ramme(f) { entitetsliste(iRom(f.rom)) }
@@ -194,7 +196,7 @@ struct HusModul: View {
                     Button { ark = .faner } label: { Image(systemName: "rectangle.3.group") }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { ark = .kort } label: { Image(systemName: "slider.horizontal.3") }
+                    Button { ark = .kort } label: { Image(systemName: "arrow.up.arrow.down") }
                 }
             }
             .alert("Garasjeport", isPresented: $bekreftPort) {
