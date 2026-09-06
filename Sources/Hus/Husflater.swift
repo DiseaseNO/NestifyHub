@@ -31,14 +31,14 @@ struct Flate<Innhold: View>: View {
                         RoundedRectangle(cornerRadius: radius, style: .continuous)
                             .fill(
                                 LinearGradient(
-                                    colors: [Farge.aksent.opacity(aktiv ? 0.16 : 0),
-                                             Farge.aksent.opacity(aktiv ? 0.03 : 0)],
+                                    colors: [Farge.aksent.opacity(aktiv ? 0.085 : 0),
+                                             Farge.aksent.opacity(aktiv ? 0.015 : 0)],
                                     startPoint: .topLeading, endPoint: .bottomTrailing)
                             )
                     }
                     .overlay {
                         RoundedRectangle(cornerRadius: radius, style: .continuous)
-                            .strokeBorder(aktiv ? Farge.aksent.opacity(0.28) : Farge.strek,
+                            .strokeBorder(aktiv ? Farge.aksent.opacity(0.16) : Farge.strek,
                                           lineWidth: 1)
                     }
             }
@@ -177,6 +177,8 @@ struct Stolpe: View {
 /// og ingenting går i stykker av et ikon som ikke stemmer.
 func romikon(_ navn: String) -> String {
     let n = navn.lowercased()
+    if n.contains("lampe") { return "lamp.table" }
+    if n.contains("julestjerne") { return "star" }
     if n.contains("kjøkken") { return "cooktop" }
     if n.contains("spisestue") { return "fork.knife" }
     if n.contains("tv") { return "tv" }

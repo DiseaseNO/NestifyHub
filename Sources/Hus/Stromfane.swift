@@ -12,6 +12,10 @@ struct Stromsvar: Decodable {
     let pris: Pris
     let poster: [Post]
     let estimat: Estimat
+    /// Kvarterssnitt gjennom døgnet, `null` der vi ikke har målt. Null er ikke det
+    /// samme som «ingen måling», og kurven må vise forskjellen.
+    let doegnkurve: [Double?]?
+    let naa_time: Int?
 
     struct Naa: Decodable {
         let total_watt: Int?
@@ -59,6 +63,9 @@ struct Stromfane: View {
             VStack(alignment: .leading, spacing: 12) {
                 if let s = svar {
                     naakort(s)
+                    if let k = s.doegnkurve, k.contains(where: { $0 != nil }) {
+                        doegnkort(k, s.naa_time)
+                    }
                     kostnad(s)
                     poster(s)
                 } else if let feil {
@@ -79,6 +86,50 @@ struct Stromfane: View {
     private func hent() async {
         do { svar = try await api.hent(Stromsvar.self, "/api/hus/strom"); feil = nil }
         catch { feil = error.localizedDescription }
+    }
+
+    /// Døgnet som en kurve.
+    ///
+    /// Et tall for «nå» sier ikke om det er høyt. Formen på døgnet gjør det: man ser
+    /// morgentoppen, dagen borte, og hvor man ligger akkurat nå i forhold til resten.
+    private func doegnkort(_ kurve: [Double?], _ naaTime: Int?) -> some View {
+        let maks = kurve.compactMap { $0 }.max() ?? 1
+        return Kort {
+            HStack {
+                Text("DØGNET").font(.system(size: 10, weight: .semibold)).tracking(0.8)
+                    .foregroundStyle(Farge.dempet)
+                Spacer()
+                Text(String(format: "topp %.1f kW", maks / 1000))
+                    .font(.system(size: 10).monospacedDigit()).foregroundStyle(Farge.svak)
+            }
+            GeometryReader { g in
+                let bredde = g.size.width / CGFloat(max(1, kurve.count))
+                HStack(alignment: .bottom, spacing: 1) {
+                    ForEach(Array(kurve.enumerated()), id: \.offset) { i, v in
+                        // Kvarteret vi er i nå, markeres. Uten den er kurven en historie
+                        // uten et «du er her».
+                        let naa = naaTime.map { i / 4 == $0 } ?? false
+                        Capsule()
+                            .fill(v == nil ? Farge.kort2
+                                  : (naa ? Farge.aksent : Farge.aksent.opacity(0.45)))
+                            .frame(width: max(1, bredde - 1),
+                                   height: v == nil ? 2 : max(2, (v! / maks) * g.size.height))
+                    }
+                }
+                .frame(maxHeight: .infinity, alignment: .bottom)
+            }
+            .frame(height: 56)
+            .padding(.top, 10)
+            HStack {
+                ForEach([0, 6, 12, 18], id: \.self) { t in
+                    Text("\(t)").font(.system(size: 9)).foregroundStyle(Farge.svak)
+                    if t != 18 { Spacer() }
+                }
+                Spacer()
+                Text("24").font(.system(size: 9)).foregroundStyle(Farge.svak)
+            }
+            .padding(.top, 4)
+        }
     }
 
     private func naakort(_ s: Stromsvar) -> some View {
@@ -104,9 +155,25 @@ struct Stromfane: View {
                     }
                 }
             }
+            // Hvor mye vi FAKTISK måler. Resten er «Annet», og den delen er ikke en
+            // feil — den er alt som ikke har egen måler. Men den skal være synlig, ellers
+            // ser tallene mer presise ut enn de er.
+            if let m = s.naa.maalt_watt, let t = s.naa.total_watt, t > 0 {
+                VStack(spacing: 5) {
+                    Stolpe(andel: Double(m) / Double(t), høyde: 8)
+                    HStack {
+                        Label("\(m) W målt", systemImage: "circle.fill")
+                            .font(.system(size: 10)).foregroundStyle(Farge.aksent)
+                        Spacer()
+                        Text("\(s.naa.annet_watt ?? max(0, t - m)) W annet")
+                            .font(.system(size: 10)).foregroundStyle(Farge.svak)
+                    }
+                }
+                .padding(.top, 12)
+            }
             if s.naa.fordeling?.er_hoyt == true {
                 Label("Høyt for dette huset akkurat nå", systemImage: "arrow.up.right")
-                    .font(.caption2).foregroundStyle(Farge.varm).padding(.top, 6)
+                    .font(.caption2).foregroundStyle(Farge.varm).padding(.top, 8)
             }
         }
     }
@@ -154,21 +221,39 @@ struct Stromfane: View {
                 Text("Ingenting av det vi måler trekker noe nevneverdig nå.")
                     .font(.caption2).foregroundStyle(Farge.svak).padding(.top, 6)
             }
-            VStack(spacing: 6) {
+            // Stolpene gjør rekkefølgen leselig uten å lese tallene: den lengste er
+            // den som koster mest akkurat nå.
+            let storste = aktive.first?.watt ?? 1
+            VStack(spacing: 9) {
                 ForEach(aktive.prefix(8)) { p in
-                    HStack {
-                        Text(p.navn).font(.caption).foregroundStyle(Farge.tekst).lineLimit(1)
-                        Spacer()
-                        Text("\(Int(p.watt ?? 0)) W")
-                            .font(.caption.monospacedDigit()).foregroundStyle(Farge.dempet)
+                    VStack(spacing: 3) {
+                        HStack {
+                            Text(p.navn).font(.caption).foregroundStyle(Farge.tekst).lineLimit(1)
+                            Spacer()
+                            Text("\(Int(p.watt ?? 0)) W")
+                                .font(.caption.monospacedDigit()).foregroundStyle(Farge.dempet)
+                        }
+                        Stolpe(andel: (p.watt ?? 0) / max(1, storste),
+                               farge: kategorifarge(p.kategori), høyde: 3)
                     }
                 }
             }
-            .padding(.top, 8)
+            .padding(.top, 10)
             if let a = s.estimat.maalt_andel {
                 Text("Vi måler \(Int(a * 100)) % av husets forbruk")
                     .font(.caption2).foregroundStyle(Farge.svak).padding(.top, 8)
             }
+        }
+    }
+
+    /// Farge per kategori, så en varmekabel og en bil ikke ser like ut i lista.
+    private func kategorifarge(_ k: String?) -> Color {
+        switch k {
+        case "Varme": Farge.varm
+        case "Bil": Farge.kjol
+        case "Hvitevarer": Farge.ok
+        case "Lys": Farge.aksent
+        default: Farge.dempet
         }
     }
 

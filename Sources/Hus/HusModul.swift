@@ -368,12 +368,17 @@ struct HusModul: View {
                     Spacer()
                     VStack(alignment: .trailing, spacing: 6) {
                         if let w = s.effekt_watt, let p = s.kr_per_kwh {
+                            // Under en krone i timen leses ører lettere; over leses
+                            // kroner lettere. «319 øre/t» er et tall man må regne om.
+                            let kr = Double(w) / 1000 * p
                             HStack(alignment: .firstTextBaseline, spacing: 3) {
-                                Text(String(format: "%.0f", Double(w) / 1000 * p * 100))
+                                Text(kr < 1 ? String(format: "%.0f", kr * 100)
+                                            : String(format: "%.2f", kr))
                                     .font(.system(size: 20, weight: .medium).monospacedDigit())
                                     .foregroundStyle(Farge.tekst)
                                     .contentTransition(.numericText())
-                                Text("øre/t").font(.caption2).foregroundStyle(Farge.dempet)
+                                Text(kr < 1 ? "øre/t" : "kr/t")
+                                    .font(.caption2).foregroundStyle(Farge.dempet)
                             }
                         }
                         HStack(spacing: 5) {
@@ -384,9 +389,16 @@ struct HusModul: View {
                         .foregroundStyle(s.lys_paa > 0 ? Farge.aksent : Farge.svak)
                     }
                 }
-                // Stolpen gir effekten en størrelse å måles mot. 10 kW er husets grove
-                // tak — over det er noe uvanlig i gang, og da skal stolpen være full.
-                Stolpe(andel: (kw ?? 0) / 10)
+                // Stolpen gir effekten en størrelse å måles mot. Uten en skala er den
+                // bare en strek: 3,4 kW sier lite hvis man ikke vet hva som er mye.
+                VStack(spacing: 4) {
+                    Stolpe(andel: (kw ?? 0) / 10)
+                    HStack {
+                        Text("0").font(.system(size: 9)).foregroundStyle(Farge.svak)
+                        Spacer()
+                        Text("10 kW").font(.system(size: 9)).foregroundStyle(Farge.svak)
+                    }
+                }
             }
             .padding(14)
         }
@@ -506,7 +518,14 @@ struct HusModul: View {
                             }
                         }
                     }
-                    Spacer(minLength: 10)
+                    Spacer(minLength: 8)
+                    // Hvor sterkt rommet lyser, ikke bare at det lyser. Fyller samtidig
+                    // et midtfelt som ellers sto tomt i hver eneste flis.
+                    if på, let niva = lysnivaa(r.navn) {
+                        Stolpe(andel: niva, høyde: 4)
+                            .padding(.bottom, 8)
+                            .transition(.opacity)
+                    }
                     Text(r.navn)
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Farge.tekst)
@@ -621,6 +640,19 @@ struct HusModul: View {
     private func alleIRom(_ navn: String) -> [String] {
         guard let r = modell?.rom.first(where: { $0.navn == navn }) else { return [] }
         return r.lys + r.klima
+    }
+
+    /// Snittet av lysstyrken på de tente lysene i rommet, 0–1.
+    ///
+    /// Null når ingen av dem kan dimmes — en flis som alltid viser full stolpe forteller
+    /// ingenting, og da er det bedre å la være å tegne den.
+    private func lysnivaa(_ navn: String) -> Double? {
+        let nivaaer = lysIRom(navn)
+            .compactMap { id in entiteter.first { $0.id == id } }
+            .filter { $0.paa }
+            .compactMap { $0.lysstyrke }
+        guard !nivaaer.isEmpty else { return nil }
+        return Double(nivaaer.reduce(0, +)) / Double(nivaaer.count) / 100
     }
 
     /// Rommets lys hentes fra husmodellen, som backend eier. Appen har ingen egen liste
