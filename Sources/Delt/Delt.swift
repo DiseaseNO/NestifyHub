@@ -145,6 +145,37 @@ enum Delt {
         }
     }
 
+    /// Når garasjeknappen i widgeten sist ble «armert».
+    ///
+    /// Widgets kan ikke vise en dialog — en intent som kjører i widget-prosessen har
+    /// ingen skjerm å spørre på. Bekreftelsen gjøres derfor med **to trykk**: første
+    /// trykk armerer og bytter knappeteksten, andre trykk innen vinduet utfører.
+    ///
+    /// Det er en ekte bekreftelse: et enkelt uhell i lomma eller på en forbipasserende
+    /// finger åpner ikke porten, og man ser hva som skjer før det skjer.
+    private static var armertfil: URL? { mappe?.appendingPathComponent("garasje-armert") }
+
+    /// Hvor lenge armeringen varer. Kort nok til at den ikke blir stående glemt,
+    /// langt nok til at man rekker å lese knappen.
+    static let armeringsvindu: TimeInterval = 8
+
+    static var garasjeArmert: Date? {
+        guard let armertfil,
+              let d = try? Data(contentsOf: armertfil),
+              let t = TimeInterval(String(decoding: d, as: UTF8.self)) else { return nil }
+        let dato = Date(timeIntervalSince1970: t)
+        return Date().timeIntervalSince(dato) < armeringsvindu ? dato : nil
+    }
+
+    static func armerGarasje(_ på: Bool) {
+        guard let armertfil else { return }
+        if på {
+            try? Data(String(Date().timeIntervalSince1970).utf8).write(to: armertfil, options: .atomic)
+        } else {
+            try? FileManager.default.removeItem(at: armertfil)
+        }
+    }
+
     /// Pulser garasjeporten. Egen funksjon fordi ruta er en annen: den tar ingen
     /// parametre, og backend bestemmer hva «puls» betyr.
     static func garasje() async throws {

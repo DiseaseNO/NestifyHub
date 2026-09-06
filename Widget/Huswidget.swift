@@ -52,17 +52,39 @@ struct Bryterspørring: EntityQuery {
 /// Kjører i widget-prosessen, ikke i appen — appen er som regel lukket når man trykker.
 /// Den sender ønsket tilstand, ikke «veksle»: to raske trykk skal ende der brukeren
 /// tror, ikke tilbake der de startet fordi begge leste samme gamle verdi.
-/// Garasjeporten fra widgeten.
+/// Garasjeporten fra widgeten — med bekreftelse.
 ///
-/// ⚠️ Ett trykk, ingen bekreftelse — widgets kan ikke spørre. Porten VEKSLER, så et
-/// feiltrykk lukker den like gjerne som den åpner. Den er derfor et eget valg man må
-/// slå på selv, ikke noe widgeten viser i utgangspunktet.
+/// Widgets kan ikke vise en dialog: intenten kjører i widget-prosessen og har ingen
+/// skjerm å spørre på. Bekreftelsen er derfor **to trykk**. Første trykk armerer og
+/// bytter knappeteksten til «Trykk igjen»; andre trykk innen åtte sekunder utfører.
+///
+/// Det er en ekte sperre, ikke pynt: ett uhell åpner ikke porten, og man ser hva som er
+/// i ferd med å skje før det skjer. Går vinduet ut, armerer neste trykk på nytt framfor
+/// å utføre — en glemt armering skal ikke ligge og vente.
 struct Garasjeintent: AppIntent {
     static var title: LocalizedStringResource = "Garasjeport"
     static var openAppWhenRun = false
 
     func perform() async throws -> some IntentResult {
-        try await Delt.garasje()
+        if Delt.garasjeArmert != nil {
+            Delt.armerGarasje(false)
+            try await Delt.garasje()
+        } else {
+            Delt.armerGarasje(true)
+        }
+        WidgetCenter.shared.reloadAllTimelines()
+        return .result()
+    }
+}
+
+/// Angrer en armering uten å gjøre noe.
+struct Avbrytgarasje: AppIntent {
+    static var title: LocalizedStringResource = "Avbryt"
+    static var openAppWhenRun = false
+
+    func perform() async throws -> some IntentResult {
+        Delt.armerGarasje(false)
+        WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
 }
@@ -134,6 +156,8 @@ struct Husoppføring: TimelineEntry {
     let date: Date
     let bilde: Delt.Husbilde?
     let valg: Husvalg
+    /// Sant når garasjeknappen er armert og venter på trykk nummer to.
+    var armert = false
 }
 
 struct Husleverandør: AppIntentTimelineProvider {
@@ -154,8 +178,15 @@ struct Husleverandør: AppIntentTimelineProvider {
 
     func timeline(for valg: Husvalg, in context: Context) async -> Timeline<Husoppføring> {
         let nå = Date()
-        return Timeline(entries: [Husoppføring(date: nå, bilde: Delt.lest(), valg: valg)],
-                        policy: .after(nå.addingTimeInterval(15 * 60)))
+        let armert = Delt.garasjeArmert
+        // Er knappen armert, ber vi om ny tidslinje når vinduet går ut — ellers ville
+        // «Trykk igjen» blitt stående til neste kvarterlige oppdatering, og se ut som om
+        // porten fortsatt var et trykk unna.
+        let neste = armert.map { $0.addingTimeInterval(Delt.armeringsvindu) }
+            ?? nå.addingTimeInterval(15 * 60)
+        return Timeline(entries: [Husoppføring(date: nå, bilde: Delt.lest(), valg: valg,
+                                               armert: armert != nil)],
+                        policy: .after(neste))
     }
 }
 
@@ -265,16 +296,37 @@ struct Husvisning: View {
                         .foregroundStyle(åpen ? .orange : .primary)
                 }
                 Spacer(minLength: 4)
-                Button(intent: Garasjeintent()) {
-                    Text(åpen ? "Lukk porten" : "Åpne porten")
-                        .font(.caption.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                if oppføring.armert {
+                    // Armert: teksten sier hva neste trykk gjør, og det finnes en vei ut.
+                    HStack(spacing: 6) {
+                        Button(intent: Garasjeintent()) {
+                            Text(åpen ? "Trykk igjen: lukk" : "Trykk igjen: åpne")
+                                .font(.caption.weight(.bold))
+                                .frame(maxWidth: .infinity).padding(.vertical, 8)
+                        }
+                        .buttonStyle(.plain)
+                        .background(Color.orange.opacity(0.35)).foregroundStyle(.primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        Button(intent: Avbrytgarasje()) {
+                            Image(systemName: "xmark").font(.caption.weight(.bold))
+                                .frame(width: 34).padding(.vertical, 8)
+                        }
+                        .buttonStyle(.plain)
+                        .background(Color.white.opacity(0.12)).foregroundStyle(.secondary)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                } else {
+                    Button(intent: Garasjeintent()) {
+                        Text(åpen ? "Lukk porten" : "Åpne porten")
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                    }
+                    .buttonStyle(.plain)
+                    .background(Color.white.opacity(0.12))
+                    .foregroundStyle(.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
-                .buttonStyle(.plain)
-                .background(Color.white.opacity(0.12))
-                .foregroundStyle(.primary)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             } else {
                 Text("Ukjent").font(.headline).foregroundStyle(.secondary)
                 Text("ingen kontakt med porten").font(.caption2).foregroundStyle(.tertiary)

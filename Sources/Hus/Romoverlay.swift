@@ -50,14 +50,10 @@ struct Innhold: View {
     var body: some View {
         ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Alt av / alt på først: det er den vanligste handlingen i et rom,
-                    // og uten den måtte man slå av fem lys ett for ett.
-                    if lys.count > 1 {
-                        HStack(spacing: 9) {
-                            samleknapp("Alt på", "sun.max.fill", true)
-                            samleknapp("Alt av", "moon.fill", false)
-                        }
-                    }
+                    // Hele rommet først. Det er den vanligste handlingen — og uten en
+                    // glider måtte man dimme fem lamper hver for seg for å få samme
+                    // resultat. To knapper «alt på/alt av» dekket bare ytterpunktene.
+                    if lys.count > 1 { rommet }
                     if !lys.isEmpty {
                         seksjon("Lys", lys.filter(\.paa).count, lys.count) {
                             ForEach(lys) { lysrad($0) }
@@ -99,6 +95,39 @@ struct Innhold: View {
                     .foregroundStyle(antall > 0 ? Farge.aksent : Farge.svak)
             }
             VStack(spacing: 9) { innhold() }
+        }
+    }
+
+    /// Hovedbryter og hovedglider for rommet.
+    ///
+    /// Bryteren slår alle lysene; glideren setter samme lysstyrke på alle som kan dimmes.
+    /// Nivået som vises er snittet av de som står på — det er det nærmeste «rommets
+    /// lysstyrke» kommer når lampene kan stå på hver sitt nivå.
+    private var rommet: some View {
+        let påNå = lys.contains(\.paa)
+        return Flate(aktiv: påNå, radius: Hus.radiusLiten) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Hele rommet").font(.subheadline.weight(.medium))
+                            .foregroundStyle(Farge.tekst)
+                        Text("\(lys.filter(\.paa).count) av \(lys.count) lys på")
+                            .font(.caption2).foregroundStyle(Farge.svak)
+                    }
+                    Spacer()
+                    Strømknapp(paa: påNå, jobber: jobber.contains("rom"), størrelse: 40) {
+                        Task {
+                            await styr("rom", "light", påNå ? "turn_off" : "turn_on",
+                                       ["entity_id": lys.map(\.id)])
+                        }
+                    }
+                }
+                if lys.contains(where: { $0.dimbar }) {
+                    Romdimmer(lys: lys.filter { $0.dimbar }, jobber: jobber.contains("rom"),
+                              styr: styr)
+                }
+            }
+            .padding(13)
         }
     }
 
@@ -228,6 +257,48 @@ struct Stillemerke: View {
             Label(d >= 60 ? "ikke hørt fra på \(d / 30) måneder" : "ikke hørt fra på \(d) døgn",
                   systemImage: "wifi.slash")
                 .font(.system(size: 9)).foregroundStyle(Farge.svak)
+        }
+    }
+}
+
+/// Lysstyrke for hele rommet.
+///
+/// Setter samme nivå på alle lampene som kan dimmes. Det er en forenkling — lampene kan
+/// stå på hver sitt nivå — men det er den forenklingen man vil ha når man skal dempe
+/// stua, og hver enkelt lampe har fortsatt sin egen glider under.
+private struct Romdimmer: View {
+    let lys: [Husentitet]
+    let jobber: Bool
+    let styr: (String, String, String, [String: Any]) async -> Void
+    @State private var verdi: Double?
+
+    /// Snittet av de som står på. Står ingen på, viser vi det siste nivået vi vet om,
+    /// slik at glideren ikke hopper til null i det man slår av.
+    private var snitt: Double {
+        let på = lys.filter(\.paa).compactMap(\.lysstyrke)
+        guard !på.isEmpty else { return 0 }
+        return Double(på.reduce(0, +)) / Double(på.count)
+    }
+    private var vises: Double { verdi ?? snitt }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sun.max").font(.caption2).foregroundStyle(Farge.svak)
+            Slider(value: Binding(get: { vises }, set: { verdi = $0 }), in: 1...100,
+                   onEditingChanged: { igang in
+                       guard !igang, let v = verdi else { return }
+                       Task {
+                           await styr("rom", "light", "turn_on",
+                                      ["entity_id": lys.map(\.id),
+                                       "brightness_pct": Int(v.rounded())])
+                           verdi = nil
+                       }
+                   })
+                .tint(Farge.aksent)
+                .disabled(jobber)
+            Text("\(Int(vises.rounded()))%")
+                .font(.caption2.monospacedDigit()).foregroundStyle(Farge.dempet)
+                .frame(width: 38, alignment: .trailing)
         }
     }
 }

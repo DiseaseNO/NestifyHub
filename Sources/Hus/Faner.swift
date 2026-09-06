@@ -33,7 +33,7 @@ enum Bolk {
     static func ider(_ fane: String) -> [String] {
         switch fane {
         case "hjem":     ["puls", "scener", "garasje", "rom"]
-        case "oversikt": ["vaer", "kalender", "soppel", "handel", "hendelser"]
+        case "oversikt": ["varsler", "vaer", "kalender", "soppel", "handel", "hendelser"]
         case "strom":    ["naa", "doegn", "kostnad", "poster", "maaned", "trend",
                           "kapasitet", "avtale"]
         case "oppgaver": ["godkjenning", "barn"]
@@ -49,6 +49,7 @@ enum Bolk {
         case "scener": "Scener"
         case "garasje": "Garasjeport"
         case "rom": "Rommene"
+        case "varsler": "Varsler"
         case "vaer": "Været"
         case "kalender": "Kalender"
         case "soppel": "Søppeltømming"

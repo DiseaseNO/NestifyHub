@@ -37,6 +37,16 @@ struct Handlesvar: Decodable {
     }
 }
 
+/// Det nettbrettets «Nå»-panel viser øverst. Regnes på serveren, ikke i hver klient —
+/// to skjermer som regner selv kan si forskjellige ting om samme hus.
+struct Varsel: Decodable, Identifiable {
+    let id: String
+    /// 0 = haster (åpen garasjedør), 1 = i dag, 2 = kan vente.
+    let alvor: Int
+    let tekst: String
+    let detalj: String?
+}
+
 struct Hjemsvar: Decodable {
     let vaer: [Dag]?
     let ute: Double?
@@ -210,6 +220,7 @@ struct Oversiktfane: View {
     let rekkefølge: [String]
     @State private var svar: Hjemsvar?
     @State private var handel: Handlesvar?
+    @State private var varsler: [Varsel] = []
     @State private var feil: String?
 
     var body: some View {
@@ -235,12 +246,51 @@ struct Oversiktfane: View {
     @ViewBuilder
     private func bolk(_ id: String, _ s: Hjemsvar) -> some View {
         switch id {
+        case "varsler":   varselkort()
         case "vaer":      vaerkort(s)
         case "kalender":  kalenderkort(s)
         case "soppel":    soppelkort(s)
         case "handel":    handelkort()
         case "hendelser": hendelseskort(s)
         default:          EmptyView()
+        }
+    }
+
+    /// Varslene. Ingenting tegnes når det ikke er noe — et tomt kort med «alt i orden»
+    /// er en påstand skjermen ikke trenger å gjenta hver gang man åpner den.
+    @ViewBuilder
+    private func varselkort() -> some View {
+        if !varsler.isEmpty {
+            VStack(spacing: 8) {
+                ForEach(varsler) { v in
+                    Flate(aktiv: v.alvor == 0, radius: Hus.radiusLiten) {
+                        HStack(spacing: 11) {
+                            Image(systemName: v.alvor == 0 ? "exclamationmark.triangle.fill"
+                                  : (v.alvor == 1 ? "clock.fill" : "bell.fill"))
+                                .font(.footnote)
+                                .foregroundStyle(farge(v.alvor))
+                                .frame(width: 20)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(v.tekst).font(.footnote.weight(.medium))
+                                    .foregroundStyle(Farge.tekst)
+                                if let d = v.detalj {
+                                    Text(d).font(.caption2).foregroundStyle(Farge.svak)
+                                }
+                            }
+                            Spacer()
+                        }
+                        .padding(12)
+                    }
+                }
+            }
+        }
+    }
+
+    private func farge(_ alvor: Int) -> Color {
+        switch alvor {
+        case 0: Farge.avvik
+        case 1: Farge.aksent
+        default: Farge.kjol
         }
     }
 
@@ -399,6 +449,7 @@ struct Oversiktfane: View {
             feil = nil
         } catch { feil = error.localizedDescription }
         handel = try? await api.hent(Handlesvar.self, "/api/hus/handel")
+        varsler = (try? await api.hent([Varsel].self, "/api/hus/varsler")) ?? []
     }
 }
 

@@ -191,3 +191,38 @@ func romikon(_ navn: String) -> String {
     if n.contains("ute") { return "tree" }
     return "square.grid.2x2"
 }
+
+/// Glider for én lysgruppe — brukes til «Lys 1. etasje».
+///
+/// Gruppa er én entitet i Home Assistant, så dette er ikke det samme som romglideren:
+/// her finnes det ett ekte nivå, og medlemslista bor i HA framfor i appen.
+struct Etasjedimmer: View {
+    let gruppe: Husentitet
+    let jobber: Bool
+    let styr: (String, String, String, [String: Any]) async -> Void
+    @State private var verdi: Double?
+
+    private var vises: Double { verdi ?? Double(gruppe.lysstyrke ?? 0) }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sun.max").font(.caption2).foregroundStyle(Farge.svak)
+            Slider(value: Binding(get: { vises }, set: { verdi = $0 }), in: 1...100,
+                   onEditingChanged: { igang in
+                       guard !igang, let v = verdi else { return }
+                       Task {
+                           await styr(gruppe.id, "light", "turn_on",
+                                      ["entity_id": gruppe.id,
+                                       "brightness_pct": Int(v.rounded())])
+                           verdi = nil
+                       }
+                   })
+                .tint(Farge.aksent)
+                .disabled(!gruppe.paa || jobber)
+            Text("\(Int(vises.rounded()))%")
+                .font(.caption2.monospacedDigit()).foregroundStyle(Farge.dempet)
+                .frame(width: 38, alignment: .trailing)
+        }
+        .opacity(gruppe.paa ? 1 : 0.4)
+    }
+}

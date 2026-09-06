@@ -356,7 +356,46 @@ struct HusModul: View {
     ///
     /// De var to grå knapper i en boks med overskrift. Overskriften sa «SCENER», som er
     /// et ord fra systemet, ikke fra huset. Nå er de bare to brikker man trykker på.
+    @ViewBuilder
     private func scenekort(_ s: Husstatus) -> some View {
+        VStack(spacing: 10) {
+            // «Lys 1. etg» — nettbrettets hurtigknapp. Gruppa er dimbar, så én glider
+            // styrer hele etasjen, og medlemslista bor i HA og ikke to steder.
+            if let sc = s.scener, let gruppe = entiteter.first(where: { $0.id == sc.alt1etgAv }) {
+                Flate(aktiv: gruppe.paa, radius: Hus.radiusLiten) {
+                    VStack(alignment: .leading, spacing: 9) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Lys 1. etasje").font(.subheadline.weight(.medium))
+                                    .foregroundStyle(Farge.tekst)
+                                Text(gruppe.paa
+                                     ? (gruppe.lysstyrke.map { "på · \($0) %" } ?? "på")
+                                     : "av")
+                                    .font(.caption2).foregroundStyle(Farge.svak)
+                            }
+                            Spacer()
+                            Strømknapp(paa: gruppe.paa, jobber: jobber.contains("1etg"),
+                                       størrelse: 40) {
+                                Task {
+                                    await styr("1etg", "light",
+                                               gruppe.paa ? "turn_off" : "turn_on",
+                                               ["entity_id": gruppe.id])
+                                }
+                            }
+                        }
+                        if gruppe.dimbar {
+                            Etasjedimmer(gruppe: gruppe, jobber: jobber.contains("1etg"),
+                                         styr: styrEntitet)
+                        }
+                    }
+                    .padding(13)
+                }
+            }
+            scenebrikker(s)
+        }
+    }
+
+    private func scenebrikker(_ s: Husstatus) -> some View {
         HStack(spacing: 10) {
             if let sc = s.scener {
                 scenebrikke("Alt av 1. etg", "moon.zzz.fill", "alt1etg") {
