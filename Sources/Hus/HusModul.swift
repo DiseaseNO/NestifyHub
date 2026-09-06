@@ -292,6 +292,17 @@ struct HusModul: View {
 
     // MARK: kortene
 
+    /// «i huset nå» når tallet er ferskt, ellers hvor gammelt det er.
+    ///
+    /// Under et halvt minutt er «12 sekunder siden» støy — da ER det nå. Over det skal
+    /// alderen stå, for en skjerm man tror er live, men ikke er det, er verre enn en
+    /// skjerm som sier fra.
+    private func alderstekst() -> String {
+        guard let hentet else { return "i huset nå" }
+        let sek = Date().timeIntervalSince(hentet)
+        return sek < 30 ? "i huset nå" : "målt for \(varighet(sek, kort: true)) siden"
+    }
+
     /// Kortene delt i strekk, der rom slås sammen til ett rutenett.
     ///
     /// Rommene var én kolonne høye kort. Sju rom fylte da hele skjermen og vel så det,
@@ -368,8 +379,10 @@ struct HusModul: View {
                 HStack(alignment: .top) {
                     Nøkkeltall(verdi: kw.map { String(format: "%.1f", $0) } ?? "–",
                                enhet: "kW",
-                               etikett: hentet.map { "oppdatert \($0.formatted(.relative(presentation: .numeric)))" }
-                                        ?? "i huset nå",
+                               // IKKE `.formatted(.relative(...))`: den bruker systemets
+                               // locale, ikke appens, og ga «oppdatert in 0 seconds».
+                               // Samme felle som klokkeslettene 3. september.
+                               etikett: alderstekst(),
                                stor: true)
                     Spacer()
                     VStack(alignment: .trailing, spacing: 6) {
@@ -551,11 +564,18 @@ struct HusModul: View {
                         }
                     }
                     .padding(.top, 3)
-                    // Hvor sterkt rommet lyser, ikke bare AT det lyser. Nederst, så
-                    // romnavnene står på linje enten rommet kan dimmes eller ei.
-                    if på, let niva = lysnivaa(r.navn) {
-                        Stolpe(andel: niva, høyde: 3).padding(.top, 7)
+                    // Hvor sterkt rommet lyser, ikke bare AT det lyser.
+                    //
+                    // Plassen er satt av ALLTID. Uten det flyttet stolpen innholdet
+                    // oppover i akkurat de flisene som kunne dimmes, og romnavnene sto
+                    // i ulik høyde ved siden av hverandre.
+                    Group {
+                        if på, let niva = lysnivaa(r.navn) {
+                            Stolpe(andel: niva, høyde: 3)
+                        }
                     }
+                    .frame(height: 3)
+                    .padding(.top, 7)
                 }
                 .padding(13)
                 .frame(height: 116, alignment: .topLeading)
