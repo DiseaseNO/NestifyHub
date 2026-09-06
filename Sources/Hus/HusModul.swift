@@ -275,6 +275,24 @@ struct HusModul: View {
         } catch { feil = error.localizedDescription }
     }
 
+    /// Signaturen `Romoverlay` og bolkene deler. Flisene styrer grupper, radene styrer
+    /// én ting — men veien ut er den samme.
+    private func styrEntitet(_ id: String, _ domain: String, _ service: String,
+                             _ data: [String: Any]) async {
+        await styr(id, domain, service, data)
+    }
+
+    /// «i huset nå» når tallet er ferskt, ellers hvor gammelt det er.
+    ///
+    /// Under et halvt minutt er «12 sekunder siden» støy — da ER det nå. Over det skal
+    /// alderen stå: en skjerm man tror er live, men ikke er det, er verre enn en som
+    /// sier fra.
+    private func alderstekst() -> String {
+        guard let hentet else { return "i huset nå" }
+        let sek = Date().timeIntervalSince(hentet)
+        return sek < 30 ? "i huset nå" : "målt for \(varighet(sek, kort: true)) siden"
+    }
+
     // MARK: forsidens toppkort
 
     /// Effekt, pris og lys — husets puls.
