@@ -16,6 +16,51 @@ struct Stromsvar: Decodable {
     /// samme som «ingen måling», og kurven må vise forskjellen.
     let doegnkurve: [Double?]?
     let naa_time: Int?
+    let tariff: Tariff?
+    /// Månedsforbruk to år bakover — for å se om forbruket endrer seg over tid.
+    let maaneder: [Maaned]?
+    /// Like mange dager i år som i fjor, så tallet er sammenlignbart midt i en måned.
+    let hittil: Hittil?
+
+    struct Tariff: Decodable {
+        let energiledd_naa: Double?
+        let er_dagsats: Bool?
+        let kapasitet: Kapasitet?
+        struct Kapasitet: Decodable {
+            /// Snittet av de tre høyeste timene på tre ulike døgn — tariffens regel.
+            let snitt_kw: Double?
+            let doegn: Int?
+            let dager: [Dag]?
+            let trinn: Trinn?
+            struct Dag: Decodable, Identifiable {
+                let dag: Int
+                let kw: Double
+                let time: Int
+                var id: Int { dag }
+            }
+            struct Trinn: Decodable {
+                let fra: Double?
+                let til: Double?
+                let kr: Double?
+                /// Hvor mange kW det er igjen til neste trinn. Det er dette tallet som
+                /// avgjør om en ekstra ovn koster 170 kroner ekstra i måneden.
+                let margin_kw: Double?
+                let neste_kr: Double?
+                let kilde: String?
+            }
+        }
+    }
+    struct Maaned: Decodable, Identifiable {
+        let start: Double
+        let kwh: Double
+        var id: Double { start }
+    }
+    struct Hittil: Decodable {
+        let dag: Int?
+        let i_aar_kwh: Double?
+        let i_fjor_kwh: Double?
+        let endring: Double?
+    }
 
     struct Naa: Decodable {
         let total_watt: Int?
@@ -33,6 +78,10 @@ struct Stromsvar: Decodable {
         let kr_per_kwh: Double?
         let kraft: Double?
         let nettleie: Double?
+        let spot_alternativ: Double?
+        let spart_dag: Double?
+        let spart_maaned: Double?
+        let spart_totalt: Double?
     }
     struct Post: Decodable, Identifiable {
         let navn: String
@@ -55,6 +104,8 @@ struct Stromsvar: Decodable {
 
 struct Stromfane: View {
     let api: API
+    /// Bolkene i den rekkefølgen brukeren har valgt.
+    let rekkefølge: [String]
     @State private var svar: Stromsvar?
     @State private var feil: String?
 
@@ -62,12 +113,7 @@ struct Stromfane: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if let s = svar {
-                    naakort(s)
-                    if let k = s.doegnkurve, k.contains(where: { $0 != nil }) {
-                        doegnkort(k, s.naa_time)
-                    }
-                    kostnad(s)
-                    poster(s)
+                    ForEach(rekkefølge, id: \.self) { bolk($0, s) }
                 } else if let feil {
                     Label(feil, systemImage: "exclamationmark.triangle")
                         .font(.footnote).foregroundStyle(Farge.avvik)
@@ -83,6 +129,195 @@ struct Stromfane: View {
         .scrollIndicators(.hidden)
         .refreshable { await hent() }
         .task { await hent() }
+    }
+
+    @ViewBuilder
+    private func bolk(_ id: String, _ s: Stromsvar) -> some View {
+        switch id {
+        case "naa":     naakort(s)
+        case "doegn":
+            if let k = s.doegnkurve, k.contains(where: { $0 != nil }) { doegnkort(k, s.naa_time) }
+        case "kostnad": kostnad(s)
+        case "poster":  poster(s)
+        case "maaned":  maanedkort(s)
+        case "trend":   trendkort(s)
+        case "kapasitet": kapasitetkort(s)
+        case "avtale":  avtalekort(s)
+        default: EmptyView()
+        }
+    }
+
+    /// Hittil i måneden — kWt og kroner, med anslag for hele måneden.
+    private func maanedkort(_ s: Stromsvar) -> some View {
+        Kort {
+            Seksjonstittel(tekst: "Hittil i måneden")
+            HStack(spacing: 0) {
+                tall(s.estimat.maalt_maaned_kwh.map { String(format: "%.0f", $0) } ?? "–", "kWt målt")
+                tall(s.estimat.maalt_maaned_kr.map { "\(Int($0)) kr" } ?? "–", "så langt")
+                tall(s.estimat.anslag_maaned_kr.map { "\(Int($0)) kr" } ?? "–", "hele måneden")
+            }
+            .padding(.top, 10)
+            if let d = s.estimat.dag_i_maaned, let n = s.estimat.dager_i_maaned {
+                Stolpe(andel: Double(d) / Double(max(1, n)), høyde: 4).padding(.top, 10)
+                Text("dag \(d) av \(n)")
+                    .font(.system(size: 10)).foregroundStyle(Farge.svak).padding(.top, 5)
+            }
+        }
+    }
+
+    /// Endrer forbruket seg — i år mot i fjor, på like mange dager.
+    @ViewBuilder
+    private func trendkort(_ s: Stromsvar) -> some View {
+        if let h = s.hittil, let iaar = h.i_aar_kwh, let ifjor = h.i_fjor_kwh {
+            let opp = (h.endring ?? 0) > 0
+            Kort {
+                Seksjonstittel(tekst: "Endrer forbruket seg")
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: opp ? "arrow.up.right" : "arrow.down.right")
+                        .font(.footnote).foregroundStyle(opp ? Farge.varm : Farge.ok)
+                    Text(String(format: "%.0f %%", abs((h.endring ?? 0) * 100)))
+                        .font(.title2.monospacedDigit())
+                        .foregroundStyle(opp ? Farge.varm : Farge.ok)
+                    Text(opp ? "mer enn i fjor" : "mindre enn i fjor")
+                        .font(.caption).foregroundStyle(Farge.dempet)
+                }
+                .padding(.top, 8)
+                HStack(spacing: 0) {
+                    tall(String(format: "%.0f", iaar), "kWt i år")
+                    tall(String(format: "%.0f", ifjor), "kWt i fjor")
+                }
+                .padding(.top, 10)
+                // Sammenligningen gjelder like mange dager. Uten det ville en halv måned
+                // sett ut som et kraftig fall.
+                if let d = h.dag {
+                    Text("samme antall dager i begge år (\(d))")
+                        .font(.system(size: 10)).foregroundStyle(Farge.svak).padding(.top, 6)
+                }
+                if let m = s.maaneder, m.count > 3 {
+                    maanedsgraf(m)
+                }
+            }
+        }
+    }
+
+    private func maanedsgraf(_ m: [Stromsvar.Maaned]) -> some View {
+        let siste = Array(m.suffix(24))
+        let maks = siste.map(\.kwh).max() ?? 1
+        return VStack(alignment: .leading, spacing: 4) {
+            GeometryReader { g in
+                HStack(alignment: .bottom, spacing: 2) {
+                    ForEach(siste) { x in
+                        Capsule().fill(Farge.aksent.opacity(0.5))
+                            .frame(height: max(2, (x.kwh / maks) * g.size.height))
+                    }
+                }
+                .frame(maxHeight: .infinity, alignment: .bottom)
+            }
+            .frame(height: 44)
+            Text("måned for måned, to år tilbake")
+                .font(.system(size: 10)).foregroundStyle(Farge.svak)
+        }
+        .padding(.top, 12)
+    }
+
+    /// Kapasitetsleddet — nettleiens fastledd.
+    ///
+    /// Regelen er snittet av de **tre høyeste timene på tre ulike døgn** i kalender-
+    /// måneden. Ikke øyeblikkstoppen: det var slik vi regnet feil en gang, og snittet
+    /// falt fra 9,2 til 6,4 kW da det ble rettet.
+    @ViewBuilder
+    private func kapasitetkort(_ s: Stromsvar) -> some View {
+        if let k = s.tariff?.kapasitet {
+            Kort {
+                HStack {
+                    Seksjonstittel(tekst: "Kapasitetsledd")
+                    Spacer()
+                    if let t = k.trinn, let kr = t.kr {
+                        Text("\(Int(kr)) kr/mnd").font(.system(size: 10).monospacedDigit())
+                            .foregroundStyle(Farge.aksent)
+                    }
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(k.snitt_kw.map { String(format: "%.1f", $0) } ?? "–")
+                        .font(.system(size: 34, weight: .light).monospacedDigit())
+                        .foregroundStyle(Farge.tekst)
+                    Text("kW snitt").font(.caption).foregroundStyle(Farge.dempet)
+                }
+                .padding(.top, 8)
+                if let t = k.trinn, let fra = t.fra, let til = t.til, let snitt = k.snitt_kw {
+                    Stolpe(andel: (snitt - fra) / max(0.1, til - fra),
+                           farge: (t.margin_kw ?? 9) < 1 ? Farge.varm : Farge.aksent, høyde: 6)
+                        .padding(.top, 12)
+                    HStack {
+                        Text(String(format: "%.0f kW", fra)).font(.system(size: 9))
+                        Spacer()
+                        Text(String(format: "%.0f kW", til)).font(.system(size: 9))
+                    }
+                    .foregroundStyle(Farge.svak).padding(.top, 4)
+                    if let m = t.margin_kw, let neste = t.neste_kr, let kr = t.kr {
+                        // Marginen er det som betyr noe: den sier hva en ekstra ovn
+                        // faktisk koster.
+                        Text(String(format: "%.1f kW igjen til neste trinn (+%d kr/mnd)",
+                                    m, Int(neste - kr)))
+                            .font(.caption2)
+                            .foregroundStyle(m < 1 ? Farge.varm : Farge.dempet)
+                            .padding(.top, 8)
+                    }
+                }
+                if let dager = k.dager, !dager.isEmpty {
+                    Divider().background(Farge.strek).padding(.vertical, 10)
+                    VStack(spacing: 5) {
+                        ForEach(dager) { d in
+                            HStack {
+                                Text("\(d.dag). kl. \(d.time)")
+                                    .font(.caption.monospacedDigit()).foregroundStyle(Farge.dempet)
+                                Spacer()
+                                Text(String(format: "%.2f kW", d.kw))
+                                    .font(.caption.monospacedDigit()).foregroundStyle(Farge.tekst)
+                            }
+                        }
+                    }
+                    // Tre døgn kreves. Har vi færre, er snittet foreløpig.
+                    if (k.doegn ?? 0) < 3 {
+                        Text("\(k.doegn ?? 0) av 3 døgn målt — snittet er foreløpig")
+                            .font(.system(size: 10)).foregroundStyle(Farge.svak).padding(.top, 8)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Strømavtalen — hva Norgespris sparer mot spot.
+    @ViewBuilder
+    private func avtalekort(_ s: Stromsvar) -> some View {
+        if s.pris.spart_totalt != nil || s.pris.spot_alternativ != nil {
+            Kort {
+                Seksjonstittel(tekst: "Strømavtalen din")
+                if let n = s.pris.kraft, let spot = s.pris.spot_alternativ {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Norgespris").font(.caption2).foregroundStyle(Farge.dempet)
+                            Stolpe(andel: n / max(n, spot), farge: Farge.ok, høyde: 6)
+                            Text(String(format: "%.2f kr/kWt", n))
+                                .font(.caption.monospacedDigit()).foregroundStyle(Farge.ok)
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Spot i dag").font(.caption2).foregroundStyle(Farge.dempet)
+                            Stolpe(andel: spot / max(n, spot), farge: Farge.varm, høyde: 6)
+                            Text(String(format: "%.2f kr/kWt", spot))
+                                .font(.caption.monospacedDigit()).foregroundStyle(Farge.varm)
+                        }
+                    }
+                    .padding(.top, 10)
+                }
+                HStack(spacing: 0) {
+                    tall(s.pris.spart_dag.map { String(format: "%.0f kr", $0) } ?? "–", "spart i dag")
+                    tall(s.pris.spart_maaned.map { String(format: "%.0f kr", $0) } ?? "–", "denne mnd")
+                    tall(s.pris.spart_totalt.map { String(format: "%.0f kr", $0) } ?? "–", "siden start")
+                }
+                .padding(.top, 12)
+            }
+        }
     }
 
     private func hent() async {
@@ -314,6 +549,8 @@ struct Oppgaversvar: Decodable {
 
 struct Oppgaverfane: View {
     let api: API
+    var rekkefølge: [String] = ["godkjenning", "barn"]
+    /// Admin viser bare godkjenningsdelen; Oppgaver viser begge.
     @State private var svar: Oppgaversvar?
     @State private var feil: String?
     @State private var jobber: Set<String> = []
@@ -322,11 +559,14 @@ struct Oppgaverfane: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if let s = svar {
-                    // Det som venter på en voksen, øverst. Ellers må man lete etter det
-                    // i hvert barnekort, og det som venter er hele grunnen til å åpne.
-                    if !ventende(s).isEmpty { godkjenningskort(s) }
-                    ForEach(s.barn) { b in barnekort(b) }
-                    if s.barn.isEmpty {
+                    ForEach(rekkefølge, id: \.self) { id in
+                        if id == "godkjenning", !ventende(s).isEmpty {
+                            godkjenningskort(s)
+                        } else if id == "barn" {
+                            ForEach(s.barn) { b in barnekort(b) }
+                        }
+                    }
+                    if s.barn.isEmpty, rekkefølge.contains("barn") {
                         Text("Ingen oppgaver å vise.").font(.footnote).foregroundStyle(Farge.svak)
                     }
                 } else if let feil {

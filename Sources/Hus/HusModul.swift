@@ -1,11 +1,12 @@
 import SwiftUI
 import WidgetKit
 
-/// «Huset» — smarthus-dashbordet i appen.
+/// «Huset» — smarthus-modulen i appen.
 ///
-/// Bygget av **kort** som brukeren selv velger og ordner, på samme måte som modulene på
-/// hjemskjermen. Ett rom er ett kort; scener og strøm er egne kort. Den som bare bryr
-/// seg om varmen, skrur av resten.
+/// Speiler nettbrettets faner. Hver fane er satt sammen av **bolker** brukeren kan
+/// flytte og skjule, men ikke legge til. Den frie modellen med egne faner og multikort
+/// er fjernet: et multikort satt til «alle rom» tegnet rommene en gang til under dem som
+/// alt lå der, og skjermen så ut som en feil.
 ///
 /// Appen regner ikke ut noe selv — den viser hva serveren sier. To klienter som regner
 /// hver for seg kommer fram til forskjellige svar.
@@ -13,32 +14,30 @@ struct HusModul: View {
     let api: API
     @State private var faner = Faner()
     @State private var valgtFane = Testskjerm.fane ?? "hjem"
-    /// Hvilket ark som er åpent.
-    ///
-    /// ÉN tilstand, ikke tre. `.sheet` på samme visning oppfører seg uforutsigbart når
-    /// den står flere ganger — det var slik trykk på et romkort ikke gjorde noe: arket
-    /// ble aldri festet, og tilstanden ble satt uten at noen viste den.
+
+    /// Hvilket ark som er åpent. ÉN tilstand, ikke flere: `.sheet` på samme visning
+    /// oppfører seg uforutsigbart når den står flere ganger — det var slik trykk på et
+    /// romkort en gang ikke gjorde noe.
     @State private var ark: Ark?
 
     enum Ark: Identifiable {
         case faner
-        case kort
+        case bolker(fane: String)
         case rom(navn: String, entiteter: [String])
 
         var id: String {
             switch self {
             case .faner: "faner"
-            case .kort: "kort"
+            case .bolker(let f): "bolker:" + f
             case .rom(let n, _): "rom:" + n
             }
         }
     }
+
     @State private var status: Husstatus?
     @State private var modell: Husmodell?
     @State private var feil: String?
     @State private var jobber: Set<String> = []
-    @State private var oppsett = Oppsett(område: "huskort", standard: ["strom", "scener", "garasje"])
-    @State private var multi = Multikort()
     @State private var entiteter: [Husentitet] = []
     /// Når tallene sist kom inn. En skjerm som viser et gammelt tall uten å si det, er
     /// verre enn en tom skjerm — man tror den er live.
@@ -48,20 +47,26 @@ struct HusModul: View {
     @State private var bekreftPort = false
     @Environment(\.scenePhase) private var scenefase
 
-    /// Kort-id-ene i visningsrekkefølge. Rommene kommer fra serveren, så lista er ikke
-    /// hardkodet — nye rom dukker opp av seg selv.
-    private func kortIder(_ s: Husstatus) -> [String] {
-        oppsett.synlige(av: alleKort(s))
+    /// Ett oppsett per fane. Nøkkelen inneholder fanens id, så rekkefølgen i Strøm ikke
+    /// blander seg med rekkefølgen i Huset.
+    @State private var bolkoppsett: [String: Oppsett] = [:]
+
+    private func oppsett(_ fane: String) -> Oppsett {
+        if let o = bolkoppsett[fane] { return o }
+        let o = Oppsett(område: "bolk." + fane, standard: Bolk.ider(fane))
+        // `@State` som muteres under tegning er ikke lov; derfor lages alle på forhånd
+        // i `.task`. Denne grenen er bare et sikkerhetsnett.
+        return o
     }
 
-    private func alleKort(_ s: Husstatus) -> [String] {
-        ["strom", "scener", "garasje"] + s.rom.map { "rom:" + $0.navn } + multi.ider
+    private func bolker(_ fane: String) -> [String] {
+        oppsett(fane).synlige(av: Bolk.ider(fane))
     }
 
     var body: some View {
         TabView(selection: $valgtFane) {
             ForEach(faner.synlige) { f in
-                fanevisning(f)
+                fane(f)
                     .tabItem { Label(f.navn, systemImage: f.ikon) }
                     .tag(f.id)
             }
@@ -70,40 +75,56 @@ struct HusModul: View {
         // Arket henger på TabView-en, ikke på hver fane. Festet per fane ville to
         // visninger bundet til samme tilstand kappes om å vise det samme.
         .sheet(item: $ark) { arkvisning($0) }
-    }
-
-    /// Innholdet i én fane. Rom- og egen-faner er samme visning med ulik kilde til
-    /// entitetslista — rommet spør huset, den egne spør brukerens eget utvalg.
-    @ViewBuilder
-    private func fanevisning(_ f: Fane) -> some View {
-        switch f.slag {
-        case .hjem:     hjemfane
-        case .oversikt: ramme(f) { Hjemfane(api: api) }
-        case .biler:    ramme(f) { Bilfane(api: api) }
-        case .strom:    ramme(f) { Stromfane(api: api) }
-        case .oppgaver: ramme(f) { Oppgaverfane(api: api) }
-        case .rom:      ramme(f) { entitetsliste(iRom(f.rom)) }
-        case .egen:     ramme(f) { entitetsliste(f.entiteter) }
+        .task {
+            // Alle oppsettene lages her, ikke under tegning: å endre `@State` mens
+            // SwiftUI tegner gir udefinert oppførsel.
+            for f in Fane.alle where bolkoppsett[f.id] == nil {
+                bolkoppsett[f.id] = Oppsett(område: "bolk." + f.id, standard: Bolk.ider(f.id))
+            }
+            await hent()
+            if let r = Testskjerm.apneRom, ark == nil {
+                ark = .rom(navn: r, entiteter: alleIRom(r))
+            }
         }
+        .onChange(of: scenefase) { _, ny in if ny == .active { Task { await hent() } } }
     }
 
-    /// Felles skall: tittel, oppsett-knapp og oppdatering. Uten dette måtte hver fane
-    /// husket å ha dem, og en fane uten vei til oppsettet er en blindvei.
-    @ViewBuilder
-    private func ramme<Innhold: View>(_ f: Fane,
-                                      @ViewBuilder _ innhold: () -> Innhold) -> some View {
+    /// Én fane: felles skall med tittel og de to sorteringsknappene, ulikt innhold.
+    private func fane(_ f: Fane) -> some View {
         NavigationStack {
-            innhold()
+            innhold(f)
+                .background(Farge.flate)
                 .navigationTitle(f.navn)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarBackground(Farge.flate, for: .navigationBar)
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
+                    // Venstre: hvilke FANER som vises. Høyre: rekkefølgen på BOLKENE i
+                    // denne fanen. To ulike ting, og de sto lenge bare på én fane.
+                    ToolbarItem(placement: .topBarLeading) {
                         Button { ark = .faner } label: {
-                            Image(systemName: "slider.horizontal.3")
+                            Image(systemName: "rectangle.3.group")
+                        }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { ark = .bolker(fane: f.id) } label: {
+                            Image(systemName: "arrow.up.arrow.down")
                         }
                     }
                 }
+                .refreshable { await hent() }
+        }
+    }
+
+    @ViewBuilder
+    private func innhold(_ f: Fane) -> some View {
+        switch f.id {
+        case "hjem":     husfane
+        case "oversikt": Oversiktfane(api: api, rekkefølge: bolker("oversikt"))
+        case "strom":    Stromfane(api: api, rekkefølge: bolker("strom"))
+        case "oppgaver": Oppgaverfane(api: api, rekkefølge: bolker("oppgaver"))
+        case "biler":    Bilfane(api: api)
+        case "admin":    Adminfane(api: api, rekkefølge: bolker("admin"))
+        default:         EmptyView()
         }
     }
 
@@ -111,12 +132,23 @@ struct HusModul: View {
     private func arkvisning(_ a: Ark) -> some View {
         switch a {
         case .faner:
-            faneoppsett
-        case .kort:
-            if let s = status {
-                Kortoppsett(oppsett: oppsett, multi: multi,
-                            kort: alleKort(s), entiteter: entiteter)
-            }
+            Rekkefølgeoppsett(
+                tittel: "Faner", ider: Fane.alle.map(\.id),
+                navn: { id in Fane.alle.first { $0.id == id }?.navn ?? id },
+                erSkjult: { faner.skjult.contains($0) },
+                settSynlig: { faner.settSynlig($0, $1) },
+                flytt: { faner.flytt(fra: $0, til: $1) },
+                nullstill: { faner.nullstill() },
+                ordne: { _ in faner.alle.map(\.id) })
+        case .bolker(let f):
+            let o = oppsett(f)
+            Rekkefølgeoppsett(
+                tittel: "Rekkefølge", ider: Bolk.ider(f), navn: Bolk.navn,
+                erSkjult: { o.skjult.contains($0) },
+                settSynlig: { o.settSynlig($0, $1) },
+                flytt: { o.flyttIds(Bolk.ider(f), fra: $0, til: $1) },
+                nullstill: { o.nullstill() },
+                ordne: { o.ordne($0) })
         case .rom(let navn, let ider):
             Romoverlay(tittel: navn,
                        entiteter: ider.compactMap { id in entiteter.first { $0.id == id } },
@@ -125,99 +157,50 @@ struct HusModul: View {
         }
     }
 
-    private var faneoppsett: some View {
-        Faneoppsett(faner: faner,
-                    rom: status?.rom.map(\.navn) ?? [],
-                    entiteter: entiteter)
-    }
+    // MARK: Huset-fanen
 
-    /// Entitetene i et rom, hentet fra husmodellen. Appen har ingen egen liste — da ville
-    /// et nytt lys i rommet krevd en ny app-versjon.
-    private func iRom(_ navn: String?) -> [String] {
-        guard let navn, let r = modell?.rom.first(where: { $0.navn == navn }) else { return [] }
-        return r.lys + r.klima
-    }
-
-    /// En rom- eller egen-fane: tingene, med dimmer og varme, uten omvei via et kort.
-    @ViewBuilder
-    private func entitetsliste(_ ids: [String]) -> some View {
-        let valgte = ids.compactMap { id in entiteter.first { $0.id == id } }
-        if status == nil {
-            ProgressView().tint(Farge.dempet).frame(maxWidth: .infinity).padding(.top, 40)
-                .frame(maxHeight: .infinity).background(Farge.flate)
-        } else if valgte.isEmpty {
-            VStack(spacing: 6) {
-                Text("Ingenting valgt i denne fanen ennå.")
-                    .font(.footnote).foregroundStyle(Farge.svak)
-                Text("Åpne oppsettet øverst til høyre.")
-                    .font(.caption2).foregroundStyle(Farge.svak)
+    private var husfane: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                if let s = status {
+                    ForEach(bolker("hjem"), id: \.self) { id in husbolk(id, s) }
+                    if bolker("hjem").isEmpty {
+                        Text("Alle bolker er skjult. Trykk på sorteringsknappen øverst.")
+                            .font(.footnote).foregroundStyle(Farge.svak)
+                    }
+                } else if let feil {
+                    Label(feil, systemImage: "exclamationmark.triangle")
+                        .font(.footnote).foregroundStyle(Farge.avvik)
+                } else {
+                    ProgressView().tint(Farge.dempet).frame(maxWidth: .infinity).padding(.top, 40)
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity).background(Farge.flate)
-        } else {
-            Romoverlay.Innhold(entiteter: valgte, styr: styrEntitet, jobber: jobber)
-                .background(Farge.flate)
-                .refreshable { await hent() }
+            .padding(16).padding(.bottom, 24)
+        }
+        .scrollIndicators(.hidden)
+        .alert("Garasjeport", isPresented: $bekreftPort) {
+            Button("Avbryt", role: .cancel) {}
+            Button(status?.garasje?.aapen == true ? "Lukk" : "Åpne") {
+                Task { await port() }
+            }
+        } message: {
+            Text(status?.garasje?.aapen == true
+                 ? "Lukke garasjeporten?" : "Åpne garasjeporten?")
         }
     }
 
-    /// Signaturen `Romoverlay` og fanene deler. Kortene styrer grupper, radene styrer
-    /// én ting — men veien ut er den samme.
-    private func styrEntitet(_ id: String, _ domain: String, _ service: String,
-                             _ data: [String: Any]) async {
-        await styr(id, domain, service, data)
-    }
-
-    private var hjemfane: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    if let s = status {
-                        ForEach(strekk(s)) { strekkvisning($0, s) }
-                        if kortIder(s).isEmpty {
-                            Text("Ingen kort er slått på. Trykk på oppsett øverst til høyre.")
-                                .font(.footnote).foregroundStyle(Farge.svak)
-                        }
-                    } else if let feil {
-                        Label(feil, systemImage: "exclamationmark.triangle")
-                            .font(.footnote).foregroundStyle(Farge.avvik)
-                    } else {
-                        ProgressView().tint(Farge.dempet).frame(maxWidth: .infinity).padding(.top, 40)
-                    }
-                }
-                .padding(16)
+    @ViewBuilder
+    private func husbolk(_ id: String, _ s: Husstatus) -> some View {
+        switch id {
+        case "puls":    stromkort(s)
+        case "scener":  scenekort(s)
+        case "garasje": garasjekort(s)
+        case "rom":
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10),
+                                GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                ForEach(s.rom) { r in romflis(r) }
             }
-            .background(Farge.flate)
-            .scrollIndicators(.hidden)
-            .navigationTitle("Huset")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Farge.flate, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { ark = .faner } label: { Image(systemName: "rectangle.3.group") }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { ark = .kort } label: { Image(systemName: "arrow.up.arrow.down") }
-                }
-            }
-            .alert("Garasjeport", isPresented: $bekreftPort) {
-                Button("Avbryt", role: .cancel) {}
-                Button(status?.garasje?.aapen == true ? "Lukk" : "Åpne") {
-                    Task { await port() }
-                }
-            } message: {
-                Text(status?.garasje?.aapen == true
-                     ? "Lukke garasjeporten?" : "Åpne garasjeporten?")
-            }
-            .refreshable { await hent() }
-            .task {
-                await hent()
-                // CI åpner et rom ved oppstart, så skjermbildet dekker dimmeren og
-                // varmen — en visning som ellers krever et trykk.
-                if let r = Testskjerm.apneRom, ark == nil {
-                    ark = .rom(navn: r, entiteter: alleIRom(r))
-                }
-            }
-            .onChange(of: scenefase) { _, ny in if ny == .active { Task { await hent() } } }
+        default: EmptyView()
         }
     }
 
@@ -290,80 +273,6 @@ struct HusModul: View {
                 await hent()
             }
         } catch { feil = error.localizedDescription }
-    }
-
-    // MARK: kortene
-
-    /// «i huset nå» når tallet er ferskt, ellers hvor gammelt det er.
-    ///
-    /// Under et halvt minutt er «12 sekunder siden» støy — da ER det nå. Over det skal
-    /// alderen stå, for en skjerm man tror er live, men ikke er det, er verre enn en
-    /// skjerm som sier fra.
-    private func alderstekst() -> String {
-        guard let hentet else { return "i huset nå" }
-        let sek = Date().timeIntervalSince(hentet)
-        return sek < 30 ? "i huset nå" : "målt for \(varighet(sek, kort: true)) siden"
-    }
-
-    /// Kortene delt i strekk, der rom slås sammen til ett rutenett.
-    ///
-    /// Rommene var én kolonne høye kort. Sju rom fylte da hele skjermen og vel så det,
-    /// og alt så likt ut. Som fliser i to kolonner får man oversikten uten å rulle, og
-    /// hvert rom får plass til å se forskjellig ut fra de andre.
-    ///
-    /// Rekkefølgen er fortsatt brukerens: bare rom som ligger etter hverandre slås
-    /// sammen. Legger man strømkortet mellom to rom, blir det to rutenett.
-    private enum Strekk: Identifiable {
-        case enkelt(String)
-        case rom([String])
-        var id: String {
-            switch self {
-            case .enkelt(let i): "e:" + i
-            case .rom(let r): "r:" + (r.first ?? "")
-            }
-        }
-    }
-
-    private func strekk(_ s: Husstatus) -> [Strekk] {
-        var ut: [Strekk] = []
-        for id in kortIder(s) {
-            if id.hasPrefix("rom:") {
-                if case .rom(let r)? = ut.last {
-                    ut[ut.count - 1] = .rom(r + [id])
-                } else {
-                    ut.append(.rom([id]))
-                }
-            } else {
-                ut.append(.enkelt(id))
-            }
-        }
-        return ut
-    }
-
-    @ViewBuilder
-    private func strekkvisning(_ st: Strekk, _ s: Husstatus) -> some View {
-        switch st {
-        case .enkelt(let id):
-            kort(id, s)
-        case .rom(let ider):
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10),
-                                GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                ForEach(ider, id: \.self) { id in
-                    if let r = s.rom.first(where: { "rom:" + $0.navn == id }) { romflis(r) }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func kort(_ id: String, _ s: Husstatus) -> some View {
-        if id == "strom" { stromkort(s) }
-        else if id == "scener" { scenekort(s) }
-        else if id == "garasje" { garasjekort(s) }
-        else if id.hasPrefix("rom:"), let r = s.rom.first(where: { "rom:" + $0.navn == id }) {
-            romflis(r)
-        }
-        else if id.hasPrefix("multi:"), let k = multi.kort(id: id) { multikort(k, s) }
     }
 
     // MARK: forsidens toppkort
@@ -553,8 +462,12 @@ struct HusModul: View {
                         .lineLimit(2).multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 8) {
+                        // Prosent, som på nettbrettet. «2/3» sier hvor mange pærer som
+                        // står på; prosenten sier hvor lyst det ER i rommet, og det er
+                        // det man ser etter.
                         if r.lys_totalt > 0 {
-                            Text("\(r.lys_paa)/\(r.lys_totalt)")
+                            Text(på ? (lysnivaa(r.navn).map { "\(Int($0 * 100)) %" } ?? "på")
+                                    : "av")
                                 .font(.caption2.monospacedDigit())
                                 .foregroundStyle(på ? Farge.aksent : Farge.svak)
                         }
@@ -591,71 +504,6 @@ struct HusModul: View {
             }
         }
         .buttonStyle(Trykkflate())
-    }
-
-    /// Et multikort: enten rommene fra huset, eller entitetene brukeren har plukket.
-    @ViewBuilder
-    private func multikort(_ k: Multikort.Kort, _ s: Husstatus) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Seksjonstittel(tekst: k.navn)
-            if k.auto {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10),
-                                    GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                    ForEach(s.rom) { r in romflis(r) }
-                }
-            } else if k.entiteter.isEmpty {
-                Flate(radius: Hus.radiusLiten) {
-                    Text("Ingenting valgt ennå. Åpne oppsettet og velg hva kortet skal vise.")
-                        .font(.caption).foregroundStyle(Farge.svak)
-                        .padding(13).frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } else {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10),
-                                    GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                    ForEach(k.entiteter, id: \.self) { id in
-                        if let e = entiteter.first(where: { $0.id == id }) { entitetsflis(e) }
-                    }
-                }
-            }
-        }
-    }
-
-    /// Én entitet som flis i et multikort.
-    private func entitetsflis(_ e: Husentitet) -> some View {
-        Flate(aktiv: e.paa, radius: Hus.radiusLiten) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top) {
-                    Image(systemName: e.domene == "climate" ? "thermometer.medium"
-                          : (e.domene == "switch" ? "poweroutlet.type-f" : "lightbulb.fill"))
-                        .font(.system(size: 15))
-                        .foregroundStyle(e.paa ? Farge.aksent : Farge.dempet)
-                    Spacer()
-                    if e.domene == "climate" {
-                        Text(e.maal.map { String(format: "%.1f°", $0) } ?? "–")
-                            .font(.caption.monospacedDigit()).foregroundStyle(Farge.tekst)
-                    } else {
-                        Strømknapp(paa: e.paa, jobber: jobber.contains(e.id), størrelse: 32) {
-                            Task {
-                                await styr(e.id, e.domene, e.paa ? "turn_off" : "turn_on",
-                                           ["entity_id": e.id])
-                            }
-                        }
-                    }
-                }
-                Spacer(minLength: 8)
-                Text(e.navn).font(.caption.weight(.medium)).foregroundStyle(Farge.tekst)
-                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                if e.domene == "climate", let t = e.temp {
-                    Text(String(format: "%.1f° nå", t))
-                        .font(.system(size: 10).monospacedDigit()).foregroundStyle(Farge.svak)
-                } else if let l = e.lysstyrke, e.paa {
-                    Text("\(l) %")
-                        .font(.system(size: 10).monospacedDigit()).foregroundStyle(Farge.aksent)
-                }
-            }
-            .padding(12)
-            .frame(height: 108, alignment: .topLeading)
-        }
     }
 
     /// Hvorfor et rom er tomt. «Ingenting å styre her» er sant på tre helt ulike måter,
@@ -695,106 +543,5 @@ struct HusModul: View {
     /// — to lister som skal være like, driver alltid fra hverandre.
     private func lysIRom(_ navn: String) -> [String] {
         modell?.rom.first { $0.navn == navn }?.lys ?? []
-    }
-}
-
-/// Hvilke kort som vises i Huset, i hvilken rekkefølge — og brukerens egne multikort.
-struct Kortoppsett: View {
-    @Bindable var oppsett: Oppsett
-    @Bindable var multi: Multikort
-    let kort: [String]
-    let entiteter: [Husentitet]
-    @State private var redigerer: Multikort.Kort?
-    @Environment(\.dismiss) private var lukk
-
-    private func navn(_ id: String) -> String {
-        switch id {
-        case "strom": return "Strøm"
-        case "scener": return "Scener"
-        case "garasje": return "Garasjeport"
-        default:
-            if id.hasPrefix("multi:") { return multi.kort(id: id)?.navn ?? "Multikort" }
-            return String(id.dropFirst(4))
-        }
-    }
-
-    /// Multikortene kan redigeres; de faste kortene kan bare slås av og flyttes.
-    private func erMulti(_ id: String) -> Bool { id.hasPrefix("multi:") }
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    ForEach(oppsett.ordne(kort), id: \.self) { id in
-                        HStack {
-                            if erMulti(id) {
-                                Button {
-                                    redigerer = multi.kort(id: id)
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Text(navn(id)).font(.subheadline)
-                                            .foregroundStyle(oppsett.skjult.contains(id) ? Farge.svak : Farge.tekst)
-                                        Image(systemName: "chevron.right")
-                                            .font(.caption2).foregroundStyle(Farge.svak)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            } else {
-                                Text(navn(id)).font(.subheadline)
-                                    .foregroundStyle(oppsett.skjult.contains(id) ? Farge.svak : Farge.tekst)
-                            }
-                            Spacer()
-                            Toggle("", isOn: Binding(get: { !oppsett.skjult.contains(id) },
-                                                     set: { oppsett.settSynlig(id, $0) }))
-                                .labelsHidden().tint(Farge.aksent)
-                        }
-                        .listRowBackground(Farge.kort)
-                    }
-                    .onMove { oppsett.flyttIds(kort, fra: $0, til: $1) }
-                } footer: {
-                    Text("Dra for å endre rekkefølgen. Rommene kommer fra huset, så nye "
-                         + "rom dukker opp nederst av seg selv.")
-                        .font(.caption2).foregroundStyle(Farge.svak)
-                }
-
-                Section {
-                    Button {
-                        redigerer = multi.nytt(auto: false)
-                    } label: {
-                        Label("Kort med egne entiteter", systemImage: "plus.circle")
-                    }
-                    .listRowBackground(Farge.kort)
-                    Button {
-                        redigerer = multi.nytt(auto: true)
-                    } label: {
-                        Label("Kort med alle rommene", systemImage: "square.grid.2x2")
-                    }
-                    .listRowBackground(Farge.kort)
-                } header: {
-                    Text("Nytt multikort")
-                } footer: {
-                    Text("Et multikort samler det du vil ha sammen — enten du plukker "
-                         + "entitetene selv, eller lar det følge de samme rommene som "
-                         + "nettbrettet viser.")
-                        .font(.caption2).foregroundStyle(Farge.svak)
-                }
-            }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .background(Farge.flate)
-            .environment(\.editMode, .constant(.active))
-            .navigationTitle("Kort i Huset")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Farge.flate, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Nullstill") { oppsett.nullstill() }.foregroundStyle(Farge.svak)
-                }
-                ToolbarItem(placement: .topBarTrailing) { Button("Ferdig") { lukk() } }
-            }
-            .sheet(item: $redigerer) { k in
-                Multikortredigering(multi: multi, kort: k, entiteter: entiteter)
-            }
-        }
     }
 }

@@ -74,40 +74,6 @@ struct Hjemsvar: Decodable {
     }
 }
 
-// MARK: - Bolker
-
-/// Én bolk i en fane.
-///
-/// Thomas skal kunne endre **rekkefølgen på bolkene inne i hver fane**, og ikke noe mer.
-/// Derfor er dette en fast liste per fane — ikke noe man kan legge til i. Det er en
-/// bevisst begrensning: en fane man kan bygge fritt, blir en fane som kan bli tom.
-enum Bolk {
-    static func ider(for fane: String) -> [String] {
-        switch fane {
-        case "hjem":     ["puls", "scener", "garasje", "rom"]
-        case "hjemliste": ["vaer", "kalender", "soppel", "handel", "hendelser"]
-        case "biler":    ["biler"]
-        default:         []
-        }
-    }
-
-    static func navn(_ id: String) -> String {
-        switch id {
-        case "puls": "Forbruk nå"
-        case "scener": "Scener"
-        case "garasje": "Garasjeport"
-        case "rom": "Rommene"
-        case "vaer": "Været"
-        case "kalender": "Kalender"
-        case "soppel": "Søppeltømming"
-        case "handel": "Handleliste"
-        case "hendelser": "Siste hendelser"
-        case "biler": "Bilene"
-        default: id
-        }
-    }
-}
-
 // MARK: - Bilene
 
 struct Bilfane: View {
@@ -239,22 +205,18 @@ struct Bilfane: View {
 
 // MARK: - Hjem: vær, kalender, søppel, handel, hendelser
 
-struct Hjemfane: View {
+struct Oversiktfane: View {
     let api: API
+    let rekkefølge: [String]
     @State private var svar: Hjemsvar?
     @State private var handel: Handlesvar?
     @State private var feil: String?
-    @State private var oppsett = Oppsett(område: "bolk.hjemliste",
-                                         standard: Bolk.ider(for: "hjemliste"))
-    @State private var visOppsett = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if let s = svar {
-                    ForEach(oppsett.synlige(av: Bolk.ider(for: "hjemliste")), id: \.self) { id in
-                        bolk(id, s)
-                    }
+                    ForEach(rekkefølge, id: \.self) { bolk($0, s) }
                 } else if let feil {
                     Label(feil, systemImage: "exclamationmark.triangle")
                         .font(.footnote).foregroundStyle(Farge.avvik)
@@ -268,14 +230,6 @@ struct Hjemfane: View {
         .scrollIndicators(.hidden)
         .refreshable { await hent() }
         .task { await hent() }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { visOppsett = true } label: { Image(systemName: "arrow.up.arrow.down") }
-            }
-        }
-        .sheet(isPresented: $visOppsett) {
-            Bolkoppsett(oppsett: oppsett, ider: Bolk.ider(for: "hjemliste"))
-        }
     }
 
     @ViewBuilder
@@ -448,56 +402,6 @@ struct Hjemfane: View {
     }
 }
 
-// MARK: - Rekkefølge på bolkene
-
-/// Hvilke bolker som vises i en fane, og i hvilken rekkefølge.
-///
-/// Bevisst enklere enn kortoppsettet i Huset: her kan man ikke legge til noe, bare
-/// flytte og skjule. Det var det Thomas ba om, og en fane man kan bygge fritt er en
-/// fane som kan bli tom.
-struct Bolkoppsett: View {
-    @Bindable var oppsett: Oppsett
-    let ider: [String]
-    @Environment(\.dismiss) private var lukk
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    ForEach(oppsett.ordne(ider), id: \.self) { id in
-                        HStack {
-                            Text(Bolk.navn(id)).font(.subheadline)
-                                .foregroundStyle(oppsett.skjult.contains(id) ? Farge.svak : Farge.tekst)
-                            Spacer()
-                            Toggle("", isOn: Binding(get: { !oppsett.skjult.contains(id) },
-                                                     set: { oppsett.settSynlig(id, $0) }))
-                                .labelsHidden().tint(Farge.aksent)
-                        }
-                        .listRowBackground(Farge.kort)
-                    }
-                    .onMove { oppsett.flyttIds(ider, fra: $0, til: $1) }
-                } footer: {
-                    Text("Dra for å endre rekkefølgen på bolkene i denne fanen.")
-                        .font(.caption2).foregroundStyle(Farge.svak)
-                }
-            }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .background(Farge.flate)
-            .environment(\.editMode, .constant(.active))
-            .navigationTitle("Rekkefølge")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Farge.flate, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Nullstill") { oppsett.nullstill() }.foregroundStyle(Farge.svak)
-                }
-                ToolbarItem(placement: .topBarTrailing) { Button("Ferdig") { lukk() } }
-            }
-        }
-    }
-}
-
 // MARK: - Småting
 
 /// `dd/mm/yyyy` → dager til. Regnes her, ikke på serveren: det endrer seg ved midnatt,
@@ -552,5 +456,116 @@ func værikon(_ kond: String?) -> String {
     case "fog": "cloud.fog.fill"
     case "windy": "wind"
     default: "cloud"
+    }
+}
+
+// MARK: - Admin
+
+struct Enhet: Decodable, Identifiable {
+    let id: String
+    let navn: String
+    let rolle: String
+    let opprettet: Double?
+    let sistBrukt: Double?
+}
+
+/// Admin — godkjenning og hva som er koblet til huset.
+///
+/// **Ikke** en kopi av nettbrettets Admin. Der ligger paring, tilbakekalling og
+/// tjeneste-restart bak en PIN, fordi nettbrettet henger på veggen og alle går forbi det.
+/// Telefonen er personlig, men den ligger også på bord: å kunne kaste ut andres enheter
+/// eller restarte tjenester herfra er en annen risiko enn å se at de finnes. Derfor er
+/// enhetslista **skrivebeskyttet** her.
+struct Adminfane: View {
+    let api: API
+    let rekkefølge: [String]
+    @State private var enheter: [Enhet] = []
+    @State private var feil: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(rekkefølge, id: \.self) { id in
+                    switch id {
+                    case "godkjenning":
+                        // Samme visning som i Oppgaver, med bare godkjenningsbolken.
+                        Oppgaverfane(api: api, rekkefølge: ["godkjenning"])
+                            .frame(height: godkjenningshøyde)
+                    case "enheter":
+                        enhetskort
+                    default:
+                        EmptyView()
+                    }
+                }
+            }
+            .padding(.bottom, 24)
+        }
+        .background(Farge.flate)
+        .scrollIndicators(.hidden)
+        .refreshable { await hent() }
+        .task { await hent() }
+    }
+
+    /// Godkjenningsdelen er en egen rullende visning inni denne. Uten en høyde ville den
+    /// krympet til ingenting i en `ScrollView`.
+    private var godkjenningshøyde: CGFloat { 340 }
+
+    private var enhetskort: some View {
+        Flate {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Seksjonstittel(tekst: "Parede enheter")
+                    Spacer()
+                    Text("\(enheter.count)").font(.system(size: 10).monospacedDigit())
+                        .foregroundStyle(Farge.svak)
+                }
+                if let feil {
+                    Label(feil, systemImage: "exclamationmark.triangle")
+                        .font(.caption2).foregroundStyle(Farge.avvik).padding(.top, 8)
+                }
+                VStack(alignment: .leading, spacing: 9) {
+                    ForEach(enheter) { e in
+                        HStack(spacing: 9) {
+                            Image(systemName: ikon(e.rolle)).font(.caption)
+                                .foregroundStyle(Farge.dempet).frame(width: 18)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(e.navn).font(.footnote).foregroundStyle(Farge.tekst)
+                                Text(beskriv(e)).font(.system(size: 10))
+                                    .foregroundStyle(e.rolle == "full" ? Farge.varm : Farge.svak)
+                            }
+                            Spacer()
+                        }
+                    }
+                }
+                .padding(.top, 10)
+                Text("Paring og frakobling gjøres fra nettbrettet, bak PIN.")
+                    .font(.system(size: 10)).foregroundStyle(Farge.svak).padding(.top, 12)
+            }
+            .padding(14)
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private func ikon(_ rolle: String) -> String {
+        switch rolle {
+        case "kamera": "video"
+        case "hjemme": "iphone"
+        case "ci": "hammer"
+        default: "exclamationmark.triangle"
+        }
+    }
+
+    /// «uten begrensning» skal stå på de som har det. En enhet paret før rollene fantes
+    /// kan alt, og det er verdt å se.
+    private func beskriv(_ e: Enhet) -> String {
+        let rolle = e.rolle == "full" ? "uten begrensning" : e.rolle
+        guard let sist = e.sistBrukt else { return "\(rolle) · aldri brukt" }
+        let d = Date(timeIntervalSince1970: sist / 1000)
+        return "\(rolle) · sist brukt \(varighet(Date().timeIntervalSince(d), kort: true)) siden"
+    }
+
+    private func hent() async {
+        do { enheter = try await api.hent([Enhet].self, "/api/hus/enheter"); feil = nil }
+        catch { feil = error.localizedDescription }
     }
 }
