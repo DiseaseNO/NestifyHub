@@ -12,11 +12,13 @@ struct Romoverlay: View {
     /// som kommer tilbake neste gang statusen hentes.
     let styr: (String, String, String, [String: Any]) async -> Void
     let jobber: Set<String>
+    /// Hvorfor lista er kortere enn ventet, når den er det.
+    var merknad: String?
     @Environment(\.dismiss) private var lukk
 
     var body: some View {
         NavigationStack {
-            Innhold(entiteter: entiteter, styr: styr, jobber: jobber)
+            Innhold(entiteter: entiteter, styr: styr, jobber: jobber, merknad: merknad)
                 .background(Farge.flate)
                 .navigationTitle(tittel)
                 .navigationBarTitleDisplayMode(.inline)
@@ -35,6 +37,7 @@ struct Innhold: View {
     let entiteter: [Husentitet]
     let styr: (String, String, String, [String: Any]) async -> Void
     let jobber: Set<String>
+    var merknad: String?
 
     private var lys: [Husentitet] { entiteter.filter { $0.domene == "light" } }
     private var brytere: [Husentitet] { entiteter.filter { $0.domene == "switch" } }
@@ -52,7 +55,10 @@ struct Innhold: View {
                     if !brytere.isEmpty {
                         seksjon("BRYTERE") { ForEach(brytere) { bryterrad($0) } }
                     }
-                    if entiteter.isEmpty {
+                    if let m = merknad {
+                        Label(m, systemImage: "info.circle")
+                            .font(.footnote).foregroundStyle(Farge.svak)
+                    } else if entiteter.isEmpty {
                         Text("Ingenting å styre her.")
                             .font(.footnote).foregroundStyle(Farge.svak)
                     }

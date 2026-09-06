@@ -40,6 +40,8 @@ struct HusModul: View {
     @State private var oppsett = Oppsett(område: "huskort", standard: ["strom", "scener", "garasje"])
     @State private var multi = Multikort()
     @State private var entiteter: [Husentitet] = []
+    @State private var entiteterFeil: String?
+    @State private var modellFeil: String?
     @State private var bekreftPort = false
     @Environment(\.scenePhase) private var scenefase
 
@@ -113,7 +115,8 @@ struct HusModul: View {
         case .rom(let navn, let ider):
             Romoverlay(tittel: navn,
                        entiteter: ider.compactMap { id in entiteter.first { $0.id == id } },
-                       styr: styrEntitet, jobber: jobber)
+                       styr: styrEntitet, jobber: jobber,
+                       merknad: merknad(ider))
         }
     }
 
@@ -219,13 +222,25 @@ struct HusModul: View {
         do {
             // Modellen endrer seg sjelden, men den må være der før en bryter kan brukes:
             // den vet hvilke lys som hører til hvilket rom.
-            if modell == nil { modell = try? await api.hent(Husmodell.self, "/api/hus/modell") }
+            if modell == nil {
+                do { modell = try await api.hent(Husmodell.self, "/api/hus/modell") }
+                catch { modellFeil = error.localizedDescription }
+            }
             let s = try await api.hent(Husstatus.self, "/api/hus/status")
             status = s; feil = nil
             // Entitetene trengs både til multikortene og til velgeren. Feiler kallet,
             // beholder vi de gamle: et kort som blir tomt fordi ett kall glapp, ser ut
             // som om noe er slettet.
-            if let e = try? await api.hent([Husentitet].self, "/api/hus/entiteter") { entiteter = e }
+            //
+            // Men feilen SVELGES IKKE. Et tomt romark uten forklaring kostet oss en hel
+            // runde med gjetting — «ingenting å styre her» kan bety at rommet er tomt,
+            // at modellen mangler, eller at dette kallet feilet. Nå står det hvilken.
+            do {
+                entiteter = try await api.hent([Husentitet].self, "/api/hus/entiteter")
+                entiteterFeil = nil
+            } catch {
+                entiteterFeil = error.localizedDescription
+            }
             Delt.lagre(.init(effektWatt: s.effekt_watt, lysPaa: s.lys_paa,
                              kroner: s.kr_per_kwh, oppdatert: Date(),
                              rom: s.rom.map { .init(navn: $0.navn, lysPaa: $0.lys_paa,
@@ -525,6 +540,20 @@ struct HusModul: View {
         .onTapGesture {
             ark = .rom(navn: r.navn, entiteter: alleIRom(r.navn))
         }
+    }
+
+    /// Hvorfor et rom er tomt. «Ingenting å styre her» er sant på tre helt ulike måter,
+    /// og forskjellen er hele forskjellen når noe skal rettes.
+    private func merknad(_ ider: [String]) -> String? {
+        if let f = modellFeil, modell == nil { return "Fikk ikke husmodellen: \(f)" }
+        if ider.isEmpty { return "Rommet har ingenting registrert i husmodellen." }
+        let funnet = ider.filter { id in entiteter.contains { $0.id == id } }.count
+        if funnet == ider.count { return nil }
+        if let f = entiteterFeil { return "Fikk ikke enhetslista: \(f)" }
+        // Resten er ekte: en enhet som er utilgjengelig, filtreres bort av serveren.
+        return funnet == 0
+            ? "Ingen av rommets \(ider.count) enheter svarer akkurat nå."
+            : "\(ider.count - funnet) av \(ider.count) enheter svarer ikke akkurat nå."
     }
 
     /// Alt i rommet — lys, brytere og varme. Kortet viser lysene; overlayet viser tingene.
