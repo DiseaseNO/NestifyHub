@@ -571,9 +571,14 @@ struct HusModul: View {
                     .frame(height: 42, alignment: .bottomLeading)
                     // Hvor sterkt rommet lyser, ikke bare AT det lyser. Plassen er satt
                     // av alltid, så en flis som kan dimmes ikke blir høyere enn naboen.
+                    // `Color.clear`, ikke en tom `Group`: en tom Group blir EmptyView,
+                    // som ikke tar plass uansett hvilken høyde man ber om. Derfor sto
+                    // navnene fortsatt i ulik høyde etter forrige forsøk.
                     Group {
                         if på, let niva = lysnivaa(r.navn) {
                             Stolpe(andel: niva, høyde: 3)
+                        } else {
+                            Color.clear
                         }
                     }
                     .frame(height: 3)
