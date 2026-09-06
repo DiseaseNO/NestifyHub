@@ -81,9 +81,22 @@ final class Faner {
     private(set) var skjult: Set<String>
     private(set) var rekkefølge: [String]
 
+    /// iOS viser **fem** faner i linja. Er det flere, blir den femte til «More», og
+    /// resten havner i en liste bak den. Seks faner ga derfor fire ekte og en «…».
+    ///
+    /// Admin er skjult i utgangspunktet, så de fem daglige står framme. Den kan slås på
+    /// — da havner noe annet under «More», og det er brukerens valg å ta.
+    static let skjultSomStandard: Set<String> = ["admin"]
+
     init() {
         let l = UserDefaults(suiteName: Delt.gruppe) ?? .standard
-        skjult = Set(l.stringArray(forKey: "hus.faner.skjult") ?? [])
+        // Har brukeren aldri vært innom oppsettet, gjelder standarden. Etterpå er det
+        // brukerens liste som gjelder, også når den er tom.
+        if l.object(forKey: "hus.faner.skjult") == nil {
+            skjult = Faner.skjultSomStandard
+        } else {
+            skjult = Set(l.stringArray(forKey: "hus.faner.skjult") ?? [])
+        }
         rekkefølge = l.stringArray(forKey: "hus.faner.rekkefolge") ?? []
     }
 
@@ -118,7 +131,7 @@ final class Faner {
     }
 
     func nullstill() {
-        skjult = []; rekkefølge = []
+        skjult = Faner.skjultSomStandard; rekkefølge = []
         lager.removeObject(forKey: skjultNøkkel)
         lager.removeObject(forKey: rekkeNøkkel)
     }
