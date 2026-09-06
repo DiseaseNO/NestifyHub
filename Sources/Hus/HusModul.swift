@@ -12,7 +12,7 @@ import WidgetKit
 struct HusModul: View {
     let api: API
     @State private var faner = Faner()
-    @State private var valgtFane = "hjem"
+    @State private var valgtFane = Testskjerm.fane ?? "hjem"
     /// Hvilket ark som er åpent.
     ///
     /// ÉN tilstand, ikke tre. `.sheet` på samme visning oppfører seg uforutsigbart når

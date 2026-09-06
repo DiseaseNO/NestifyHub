@@ -97,6 +97,15 @@ enum Testskjerm {
         #endif
     }
 
+    /// Hvilken fane i Huset som skal være åpen, `-fane strom|oppgaver`.
+    static var fane: String? {
+        #if DEBUG
+        UserDefaults.standard.string(forKey: "fane")
+        #else
+        nil
+        #endif
+    }
+
     /// Åpner romarket på dette rommet ved oppstart, `-apnerom "Kjøkken"`. Uten dette
     /// måtte skjermbildet av dimmeren komme av et simulert trykk.
     static var apneRom: String? {

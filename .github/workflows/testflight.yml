@@ -246,6 +246,8 @@ jobs:
             knips 7-hus      -server localhost:8443 -token ci -skjerm hus
             # Åpner romarket ved oppstart, så dimmeren og varmen kommer med.
             knips 8-hus-rom  -server localhost:8443 -token ci -skjerm hus -apnerom "Kjøkken"
+            knips 9-strom    -server localhost:8443 -token ci -skjerm hus -fane strom
+            knips 10-oppgaver -server localhost:8443 -token ci -skjerm hus -fane oppgaver
           else
             echo "::warning::ingen stubbe — Huset ble ikke knipset"
           fi

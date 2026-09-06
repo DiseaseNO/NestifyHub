@@ -46,14 +46,26 @@ struct Innhold: View {
     var body: some View {
         ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    // Alt av / alt på først: det er den vanligste handlingen i et rom,
+                    // og uten den måtte man slå av fem lys ett for ett.
+                    if lys.count > 1 {
+                        HStack(spacing: 9) {
+                            samleknapp("Alt på", "sun.max.fill", true)
+                            samleknapp("Alt av", "moon.fill", false)
+                        }
+                    }
                     if !lys.isEmpty {
-                        seksjon("LYS") { ForEach(lys) { lysrad($0) } }
+                        seksjon("Lys", lys.filter(\.paa).count) { ForEach(lys) { lysrad($0) } }
                     }
                     if !klima.isEmpty {
-                        seksjon("VARME") { ForEach(klima) { klimarad($0) } }
+                        seksjon("Varme", klima.filter { $0.handling == "heating" }.count) {
+                            ForEach(klima) { klimarad($0) }
+                        }
                     }
                     if !brytere.isEmpty {
-                        seksjon("BRYTERE") { ForEach(brytere) { bryterrad($0) } }
+                        seksjon("Brytere", brytere.filter(\.paa).count) {
+                            ForEach(brytere) { bryterrad($0) }
+                        }
                     }
                     if let m = merknad {
                         Label(m, systemImage: "info.circle")
@@ -69,15 +81,42 @@ struct Innhold: View {
     }
 
     @ViewBuilder
-    private func seksjon<Innhold: View>(_ navn: String,
+    private func seksjon<Innhold: View>(_ navn: String, _ antall: Int,
                                         @ViewBuilder _ innhold: () -> Innhold) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(navn).font(.system(size: 9, weight: .semibold)).foregroundStyle(Farge.dempet)
-            VStack(spacing: 10) { innhold() }
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                Seksjonstittel(tekst: navn)
+                Spacer()
+                Text("\(antall)").font(.system(size: 10).monospacedDigit())
+                    .foregroundStyle(Farge.svak)
+            }
+            VStack(spacing: 9) { innhold() }
         }
     }
 
+    private func samleknapp(_ tittel: String, _ ikon: String, _ paa: Bool) -> some View {
+        Button {
+            Kjenn.trykk()
+            Task {
+                await styr(lys.map(\.id).joined(separator: ","), "light",
+                           paa ? "turn_on" : "turn_off", ["entity_id": lys.map(\.id)])
+                Kjenn.vellykket()
+            }
+        } label: {
+            Flate(radius: Hus.radiusLiten) {
+                HStack(spacing: 7) {
+                    Image(systemName: ikon).font(.caption)
+                        .foregroundStyle(paa ? Farge.aksent : Farge.dempet)
+                    Text(tittel).font(.footnote.weight(.medium)).foregroundStyle(Farge.tekst)
+                }
+                .padding(.vertical, 11).frame(maxWidth: .infinity)
+            }
+        }
+        .buttonStyle(Trykkflate())
+    }
+
     private func lysrad(_ e: Husentitet) -> some View {
+        Flate(aktiv: e.paa, radius: Hus.radiusLiten) {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 1) {
@@ -88,11 +127,10 @@ struct Innhold: View {
                 if jobber.contains(e.id) {
                     ProgressView().controlSize(.mini).tint(Farge.dempet)
                 }
-                Toggle("", isOn: Binding(
-                    get: { e.paa },
-                    set: { på in Task { await styr(e.id, "light", på ? "turn_on" : "turn_off",
-                                                   ["entity_id": e.id]) } }))
-                    .labelsHidden().tint(Farge.aksent).disabled(jobber.contains(e.id))
+                Strømknapp(paa: e.paa, jobber: jobber.contains(e.id), størrelse: 36) {
+                    Task { await styr(e.id, "light", e.paa ? "turn_off" : "turn_on",
+                                      ["entity_id": e.id]) }
+                }
             }
             // Bare dimbare lys får slider. En av/på-pære med en dimmer som ikke gjør noe
             // er verre enn ingen dimmer.
@@ -100,31 +138,30 @@ struct Innhold: View {
                 Dimmer(e: e, jobber: jobber.contains(e.id), styr: styr)
             }
         }
-        .padding(12)
+        .padding(13)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Farge.kort)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
     }
 
     private func bryterrad(_ e: Husentitet) -> some View {
+        Flate(aktiv: e.paa, radius: Hus.radiusLiten) {
         HStack {
             VStack(alignment: .leading, spacing: 1) {
                 Text(e.navn).font(.subheadline).foregroundStyle(Farge.tekst).lineLimit(1)
                 Stillemerke(dager: e.stille_dager)
             }
             Spacer()
-            Toggle("", isOn: Binding(
-                get: { e.paa },
-                set: { på in Task { await styr(e.id, "switch", på ? "turn_on" : "turn_off",
-                                               ["entity_id": e.id]) } }))
-                .labelsHidden().tint(Farge.aksent).disabled(jobber.contains(e.id))
+            Strømknapp(paa: e.paa, jobber: jobber.contains(e.id), størrelse: 36) {
+                Task { await styr(e.id, "switch", e.paa ? "turn_off" : "turn_on",
+                                  ["entity_id": e.id]) }
+            }
         }
-        .padding(12)
-        .background(Farge.kort)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(13)
+        }
     }
 
     private func klimarad(_ e: Husentitet) -> some View {
+        Flate(aktiv: e.handling == "heating", radius: Hus.radiusLiten) {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(e.navn).font(.subheadline).foregroundStyle(Farge.tekst).lineLimit(1)
@@ -149,9 +186,8 @@ struct Innhold: View {
                 gradknapp("plus", e, 0.5)
             }
         }
-        .padding(12)
-        .background(Farge.kort)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(13)
+        }
     }
 
     private func gradknapp(_ ikon: String, _ e: Husentitet, _ delta: Double) -> some View {
