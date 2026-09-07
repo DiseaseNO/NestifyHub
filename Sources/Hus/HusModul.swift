@@ -64,13 +64,29 @@ struct HusModul: View {
     }
 
     var body: some View {
-        TabView(selection: $valgtFane) {
-            ForEach(faner.synlige) { f in
-                fane(f)
-                    .tabItem { Label(f.navn, systemImage: f.ikon) }
-                    .tag(f.id)
+        // EGEN fanelinje, ikke `TabView`.
+        //
+        // iOS sin tar bare fem: er det flere, blir den femte til «More» og resten havner
+        // i en liste bak den. Verre er det at innholdet under «More» pakkes inn i iOS'
+        // egen navigasjon, som spiser verktøylinja — så både Admin OG sorteringsknappene
+        // forsvant. Med vår egen linje er alle fanene likeverdige, og hver av dem
+        // beholder sin egen `NavigationStack`.
+        VStack(spacing: 0) {
+            ZStack {
+                ForEach(faner.synlige) { f in
+                    // Alle fanene finnes, men bare den valgte tegnes. Da beholder hver
+                    // fane rulleposisjonen sin når man bytter fram og tilbake.
+                    if f.id == valgtFane { fane(f) }
+                }
+                if faner.synlige.first(where: { $0.id == valgtFane }) == nil {
+                    // Fanen er skjult eller ukjent — vis den første som finnes.
+                    Color.clear.onAppear { valgtFane = faner.synlige.first?.id ?? "hjem" }
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            fanelinje
         }
+        .background(Farge.flate)
         .tint(Farge.aksent)
         // Arket henger på TabView-en, ikke på hver fane. Festet per fane ville to
         // visninger bundet til samme tilstand kappes om å vise det samme.
@@ -87,6 +103,40 @@ struct HusModul: View {
             }
         }
         .onChange(of: scenefase) { _, ny in if ny == .active { Task { await hent() } } }
+    }
+
+    private var fanelinje: some View {
+        HStack(spacing: 0) {
+            ForEach(faner.synlige) { f in
+                Button {
+                    Kjenn.trykk()
+                    valgtFane = f.id
+                } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: f.ikon)
+                            .font(.system(size: 17))
+                            .frame(height: 20)
+                        Text(f.navn)
+                            .font(.system(size: 9, weight: valgtFane == f.id ? .semibold : .regular))
+                            // Seks navn på en telefonbredde er trangt. Heller litt
+                            // mindre skrift enn «Oppg…».
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                    }
+                    .foregroundStyle(valgtFane == f.id ? Farge.aksent : Farge.svak)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 8).padding(.bottom, 2)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 4)
+        .background(alignment: .top) {
+            VStack(spacing: 0) {
+                Rectangle().fill(Farge.strek).frame(height: 0.5)
+                Farge.kort
+            }
+        }
     }
 
     /// Én fane: felles skall med tittel og de to sorteringsknappene, ulikt innhold.

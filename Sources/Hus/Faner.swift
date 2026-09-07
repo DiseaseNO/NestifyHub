@@ -82,12 +82,12 @@ final class Faner {
     private(set) var skjult: Set<String>
     private(set) var rekkefølge: [String]
 
-    /// iOS viser **fem** faner i linja. Er det flere, blir den femte til «More», og
-    /// resten havner i en liste bak den. Seks faner ga derfor fire ekte og en «…».
+    /// Ingenting er skjult i utgangspunktet.
     ///
-    /// Admin er skjult i utgangspunktet, så de fem daglige står framme. Den kan slås på
-    /// — da havner noe annet under «More», og det er brukerens valg å ta.
-    static let skjultSomStandard: Set<String> = ["admin"]
+    /// Var `["admin"]` en kort periode, fordi iOS sin fanelinje bare tar fem og den
+    /// sjette havnet under «More». Appen tegner nå sin egen linje, som tar alle seks —
+    /// og da er det ingen grunn til å skjule noe for brukeren.
+    static let skjultSomStandard: Set<String> = []
 
     init() {
         let l = UserDefaults(suiteName: Delt.gruppe) ?? .standard
