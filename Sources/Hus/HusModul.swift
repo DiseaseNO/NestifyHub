@@ -129,13 +129,16 @@ struct HusModul: View {
                     }
                     .foregroundStyle(valgt ? Farge.aksent : Farge.svak)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 5)
                     .background {
                         // Svak flate bak den valgte. Fargen alene bar for lite når seks
-                        // ikoner står på rad.
+                        // ikoner står på rad — men flata skal ligge TETT rundt innholdet.
+                        // Full høyde og full bredde gjorde den valgte fanen til en kloss
+                        // ved siden av fem som fløt fritt.
                         if valgt {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Farge.aksent.opacity(0.12))
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Farge.aksent.opacity(0.13))
+                                .padding(.horizontal, 6)
                         }
                     }
                     .contentShape(Rectangle())
@@ -143,8 +146,8 @@ struct HusModul: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.top, 6)
+        .padding(.horizontal, 4)
+        .padding(.top, 5)
         .background {
             // Bakgrunnen MÅ gå ned i det trygge området. Uten det sluttet linja brått
             // og etterlot et svart felt ned mot hjemindikatoren — den så ut som en
