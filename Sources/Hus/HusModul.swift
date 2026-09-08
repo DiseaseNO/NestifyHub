@@ -108,34 +108,53 @@ struct HusModul: View {
     private var fanelinje: some View {
         HStack(spacing: 0) {
             ForEach(faner.synlige) { f in
+                let valgt = valgtFane == f.id
                 Button {
                     Kjenn.trykk()
-                    valgtFane = f.id
+                    // Byttet animeres, ellers hopper markeringen mellom fanene.
+                    withAnimation(.snappy(duration: 0.22)) { valgtFane = f.id }
                 } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: f.ikon)
-                            .font(.system(size: 17))
-                            .frame(height: 20)
+                    VStack(spacing: 4) {
+                        Image(systemName: valgt ? f.fylt : f.ikon)
+                            .font(.system(size: 19))
+                            .frame(height: 22)
+                            // Symbolet vokser litt når det velges. Bevegelsen forteller
+                            // hvor trykket havnet, uten at noe flytter på seg.
+                            .scaleEffect(valgt ? 1.06 : 1)
                         Text(f.navn)
-                            .font(.system(size: 9, weight: valgtFane == f.id ? .semibold : .regular))
+                            .font(.system(size: 10, weight: valgt ? .semibold : .regular))
                             // Seks navn på en telefonbredde er trangt. Heller litt
                             // mindre skrift enn «Oppg…».
-                            .lineLimit(1).minimumScaleFactor(0.8)
+                            .lineLimit(1).minimumScaleFactor(0.75)
                     }
-                    .foregroundStyle(valgtFane == f.id ? Farge.aksent : Farge.svak)
+                    .foregroundStyle(valgt ? Farge.aksent : Farge.svak)
                     .frame(maxWidth: .infinity)
-                    .padding(.top, 8).padding(.bottom, 2)
+                    .padding(.vertical, 8)
+                    .background {
+                        // Svak flate bak den valgte. Fargen alene bar for lite når seks
+                        // ikoner står på rad.
+                        if valgt {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Farge.aksent.opacity(0.12))
+                        }
+                    }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 4)
-        .background(alignment: .top) {
-            VStack(spacing: 0) {
+        .padding(.horizontal, 6)
+        .padding(.top, 6)
+        .background {
+            // Bakgrunnen MÅ gå ned i det trygge området. Uten det sluttet linja brått
+            // og etterlot et svart felt ned mot hjemindikatoren — den så ut som en
+            // stripe som lå oppå skjermen framfor å høre til den.
+            ZStack(alignment: .top) {
+                Rectangle().fill(.ultraThinMaterial)
+                    .overlay(Farge.kort.opacity(0.82))
                 Rectangle().fill(Farge.strek).frame(height: 0.5)
-                Farge.kort
             }
+            .ignoresSafeArea(edges: .bottom)
         }
     }
 

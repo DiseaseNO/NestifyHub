@@ -14,13 +14,19 @@ struct Fane: Identifiable, Equatable {
     let navn: String
     let ikon: String
 
+    /// Fylt variant når fanen er valgt. Et fylt symbol leses som «her er du» på
+    /// avstand; farge alene gjør det ikke, særlig ikke på en skjerm i sollys.
+    let fylt: String
+
     static let alle: [Fane] = [
-        Fane(id: "hjem", navn: "Huset", ikon: "house"),
-        Fane(id: "oversikt", navn: "Oversikt", ikon: "square.text.square"),
-        Fane(id: "strom", navn: "Strøm", ikon: "bolt"),
-        Fane(id: "oppgaver", navn: "Oppgaver", ikon: "checklist"),
-        Fane(id: "biler", navn: "Bilene", ikon: "car"),
-        Fane(id: "admin", navn: "Admin", ikon: "gearshape"),
+        Fane(id: "hjem", navn: "Huset", ikon: "house", fylt: "house.fill"),
+        // `checklist` og `square.text.square` var visuelt tyngre enn resten og gjorde
+        // linja urolig. Symbolene her har samme strektykkelse.
+        Fane(id: "oversikt", navn: "Oversikt", ikon: "square.grid.2x2", fylt: "square.grid.2x2.fill"),
+        Fane(id: "strom", navn: "Strøm", ikon: "bolt", fylt: "bolt.fill"),
+        Fane(id: "oppgaver", navn: "Oppgaver", ikon: "checkmark.circle", fylt: "checkmark.circle.fill"),
+        Fane(id: "biler", navn: "Bilene", ikon: "car", fylt: "car.fill"),
+        Fane(id: "admin", navn: "Admin", ikon: "gearshape", fylt: "gearshape.fill"),
     ]
 }
 
