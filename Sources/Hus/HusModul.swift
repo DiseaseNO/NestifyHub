@@ -129,18 +129,13 @@ struct HusModul: View {
                     }
                     .foregroundStyle(valgt ? Farge.aksent : Farge.svak)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 5)
-                    .background {
-                        // Svak flate bak den valgte. Fargen alene bar for lite når seks
-                        // ikoner står på rad — men flata skal ligge TETT rundt innholdet.
-                        // Full høyde og full bredde gjorde den valgte fanen til en kloss
-                        // ved siden av fem som fløt fritt.
-                        if valgt {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Farge.aksent.opacity(0.13))
-                                .padding(.horizontal, 6)
-                        }
-                    }
+                    .padding(.vertical, 6)
+                    // INGEN flate bak den valgte.
+                    //
+                    // Prøvd, og forkastet: en pille rundt ett av seks ikoner gjorde den
+                    // valgte til en kloss mens de fem andre fløt fritt. Det fylte
+                    // symbolet, aksentfargen og halvfet tekst sier «her er du» uten å
+                    // legge en boks oppå linja.
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
