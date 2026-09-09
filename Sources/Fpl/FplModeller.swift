@@ -158,6 +158,10 @@ struct FplStatus: Decodable {
         /// fra forrige runde skal ikke se ut som svar på dagens knapp.
         let gjelder_naavaerende: Bool?
         let merknad: String?
+        /// Linjene fra kildens kontrollkjøring før innsending. Den viser hva som faktisk
+        /// ble endret, ikke hva som var planlagt — og det er forskjellen når noe ser rart
+        /// ut i ettertid.
+        let diff: [String]?
     }
 
     /// Dekoder felt for felt, slik at ETT felt som skifter form ikke tar med seg

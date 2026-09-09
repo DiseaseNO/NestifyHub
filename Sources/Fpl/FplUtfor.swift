@@ -119,6 +119,22 @@ struct FplUtfor: View {
             if let f = k.feil, !f.isEmpty {
                 Text(f).font(.caption2).foregroundStyle(Farge.avvik)
             }
+            // Kontrollkjøringen, bak en fold: den er teknisk, og skal være tilgjengelig
+            // uten å være det første man møter.
+            if let d = k.diff, !d.isEmpty {
+                DisclosureGroup("Hva som ble endret") {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(d, id: \.self) { linje in
+                            Text(linje).font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(Farge.dempet)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 4)
+                }
+                .font(.caption2).tint(Farge.svak).foregroundStyle(Farge.dempet)
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
