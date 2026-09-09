@@ -61,23 +61,101 @@ struct FplUtfor: View {
                     .font(.caption2).foregroundStyle(Farge.avvik)
             }
         }
-        .confirmationDialog("Utfør anbefalingen?", isPresented: $bekreft, titleVisibility: .visible) {
-            Button("Utfør") { Task { await send() } }
-            Button("Avbryt", role: .cancel) {}
-        } message: {
-            // Konsekvensen i klartekst. Det er forskjellen på en knapp man tør bruke og
-            // en man lar være.
-            Text(bekreftelsestekst)
-        }
+        // EGET ark, ikke `confirmationDialog`.
+        //
+        // Dialogen fikk hele sammendraget som melding — en halv side tekst som dyttet
+        // «Avbryt» ut av skjermen. En bekreftelse man ikke kan avbryte er ikke en
+        // bekreftelse. Arket har fast bunn med begge knappene, og teksten ruller.
+        .sheet(isPresented: $bekreft) { bekreftelsesark }
     }
 
-    private var bekreftelsestekst: String {
-        var deler: [String] = []
-        if let s = a?.sammendrag, !s.isEmpty { deler.append(s) }
-        if let k = a?.kostnad, !k.isEmpty { deler.append("Kostnad: \(k)") }
-        deler.append("Godkjenningen sendes til FPL-systemet, som utfører den. "
-                     + "Den kan ikke trekkes tilbake herfra.")
-        return deler.joined(separator: "\n\n")
+    /// Hva som faktisk skjer, punkt for punkt.
+    ///
+    /// Bygget av de STRUKTURERTE feltene, ikke av sammendraget. Sammendraget er kildens
+    /// begrunnelse — den hører hjemme på skjermen bak, der man leser den i ro. Her skal
+    /// det stå hva knappen gjør, og det er en kort liste.
+    private var handlinger: [String] {
+        guard let a else { return [] }
+        var ut: [String] = []
+        for b in a.bytter ?? [] {
+            let inn = b.inn?.navn ?? "?"
+            let utNavn = b.ut?.navn ?? "?"
+            ut.append("Bytte: \(utNavn) ut, \(inn) inn")
+        }
+        if (a.bytter ?? []).isEmpty { ut.append("Ingen bytter") }
+        if let k = a.kaptein?.navn { ut.append("Kaptein: \(k)") }
+        if let v = a.vise?.navn { ut.append("Visekaptein: \(v)") }
+        if a.endrer_oppstilling == true { ut.append("Endrer startelleveren") }
+        if let c = a.chip { ut.append("Chip: \(c)") }
+        return ut
+    }
+
+    private var bekreftelsesark: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 9) {
+                            Text("Dette skjer").font(.caption.weight(.semibold))
+                                .foregroundStyle(Farge.dempet)
+                            ForEach(handlinger, id: \.self) { h in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: "arrow.right").font(.caption2)
+                                        .foregroundStyle(Farge.aksent).padding(.top, 2)
+                                    Text(h).font(.subheadline).foregroundStyle(Farge.tekst)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+
+                        if let k = a?.kostnad, !k.isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Kostnad").font(.caption.weight(.semibold))
+                                    .foregroundStyle(Farge.dempet)
+                                // Kildens tekst, ordrett. Vi regner ikke selv om et bytte
+                                // er gratis — det avhenger av frie bytter og chip.
+                                Text(k).font(.subheadline.weight(.medium))
+                                    .foregroundStyle(Farge.tekst)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+
+                        Label("Godkjenningen sendes til FPL-systemet, som utfører den. "
+                              + "Den kan ikke trekkes tilbake herfra.",
+                              systemImage: "exclamationmark.circle")
+                            .font(.caption).foregroundStyle(Farge.svak)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(18)
+                }
+                .scrollIndicators(.hidden)
+
+                // Fast bunn: knappene skal ALLTID være synlige, uansett hvor lang
+                // teksten over blir.
+                VStack(spacing: 9) {
+                    Button {
+                        bekreft = false
+                        Task { await send() }
+                    } label: {
+                        Text("Utfør").font(.callout.weight(.semibold))
+                            .frame(maxWidth: .infinity).padding(.vertical, 14)
+                            .background(Farge.aksent).foregroundStyle(Farge.flate)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(Trykkflate())
+                    Button("Avbryt") { bekreft = false }
+                        .font(.callout).foregroundStyle(Farge.dempet)
+                        .frame(maxWidth: .infinity).padding(.vertical, 10)
+                }
+                .padding(.horizontal, 18).padding(.bottom, 10)
+            }
+            .background(Farge.flate)
+            .navigationTitle("Utfør anbefalingen?")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Farge.flate, for: .navigationBar)
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 
     private var knapp: some View {
