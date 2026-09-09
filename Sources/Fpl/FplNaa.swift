@@ -277,6 +277,11 @@ struct FplNaa: View {
                     Text(b).font(.footnote).foregroundStyle(Farge.tekst)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                // Knappen står i anbefalingskortet, ikke nederst på skjermen: den hører
+                // til det man nettopp leste, og skal ikke kunne trykkes uten at
+                // begrunnelsen er rett over.
+                FplUtfor(lager: lager, svar: s)
+                    .padding(.top, 4)
                 resten(s)
             }
             .padding(12)

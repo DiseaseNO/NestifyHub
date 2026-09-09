@@ -137,6 +137,29 @@ struct FplStatus: Decodable {
     /// Odds-avledet per lag, alle 20, nøklet på klubbnavn. **Framoverskuende.**
     let kampforventning: [String: Kampforventning]?
 
+    /// Kvitteringen for utførelse.
+    ///
+    /// Uten den vet ikke appen om noe skjedde, og da tør ingen trykke på knappen.
+    /// `hva_ble_gjort` er en **verifisert** påstand: kilden leser tilbake fra laget og
+    /// sammenligner før den skriver `utfort`.
+    let utforelse: Utforelse?
+
+    struct Utforelse: Decodable {
+        /// `ingen` · `venter` · `utfort` · `avvist_endret_grunnlag` · `avvist_frist` ·
+        /// `feilet`. Alle seks står i `ordliste`, så appen forklarer dem selv.
+        let status: String
+        let anbefaling_id: String?
+        let godkjent: String?
+        let utfort: String?
+        let hva_ble_gjort: String?
+        let kostnad: String?
+        let feil: String?
+        /// Sant når kvitteringen gjelder anbefalingen som ligger der NÅ. En kvittering
+        /// fra forrige runde skal ikke se ut som svar på dagens knapp.
+        let gjelder_naavaerende: Bool?
+        let merknad: String?
+    }
+
     /// Dekoder felt for felt, slik at ETT felt som skifter form ikke tar med seg
     /// skjermen.
     ///
@@ -168,6 +191,7 @@ struct FplStatus: Decodable {
         ordliste                  = try? c.decodeIfPresent([String: Kildeord].self, forKey: .ordliste)
         anbefaling                = try? c.decodeIfPresent(Anbefaling.self, forKey: .anbefaling)
         kampforventning           = try? c.decodeIfPresent([String: Kampforventning].self, forKey: .kampforventning)
+        utforelse                 = try? c.decodeIfPresent(Utforelse.self, forKey: .utforelse)
 
         // Streng før 5. september, objekt etter. Fra objektet er `plan` setningen som
         // faktisk sier noe; resten er tall appen viser andre steder.
@@ -186,7 +210,7 @@ struct FplStatus: Decodable {
         case versjon, generert, sesong, lag, runde, tropp, sjekker, kilder
         case odds_kvote_igjen, modell_status, aapne_sporsmal, aapne_risikoer
         case modell_status_sammendrag, sporsmal_oversikt, endret, endret_historikk
-        case ordliste, bytte_status, anbefaling, kampforventning
+        case ordliste, bytte_status, anbefaling, kampforventning, utforelse
     }
 
     /// Den ventende beslutningen som struktur.
@@ -195,6 +219,15 @@ struct FplStatus: Decodable {
     /// oppstilling». `endrer_oppstilling` finnes nettopp så vi slipper å tolke null.
     struct Anbefaling: Decodable {
         let finnes: Bool?
+        /// Identifiserer nøyaktig denne anbefalingen, og følger med godkjenningen.
+        /// Er anbefalingen byttet ut i mellomtiden, svarer kilden
+        /// `avvist_endret_grunnlag` framfor å gjøre noe.
+        let id: String?
+        let grunnlag_id: String?
+        /// Hva det koster, i klartekst fra kilden. Vi regner det IKKE selv: om et bytte
+        /// er gratis eller koster fire poeng avhenger av frie bytter og chip-tilstand,
+        /// og det regnestykket er deres.
+        let kostnad: String?
         let skrevet: String?
         let bytter: [Bytte]?
         let chip: String?
@@ -388,6 +421,24 @@ final class FplLager {
 
     private let api: API
     init(api: API) { self.api = api }
+
+    /// Leverer en signert godkjenning av anbefalingen.
+    ///
+    /// Ligger her, ikke i visningen: lageret eier API-et og hentingen, og etter en
+    /// godkjenning må dataene hentes på nytt for å få kvitteringen. To ledd som må
+    /// gjøres i rekkefølge hører til samme sted.
+    ///
+    /// **Vi utfører ingenting.** Vi leverer et signal; kilden kontrollerer sine egne
+    /// sperrer og gjør jobben.
+    func godkjenn() async throws {
+        guard let d = svar?.data, let a = d.anbefaling,
+              let id = a.id, let grunnlag = a.grunnlag_id else {
+            throw APIFeil.nettverk("Anbefalingen mangler id — kan ikke godkjennes.")
+        }
+        try await api.send("/api/fpl/godkjenn",
+                           ["anbefaling_id": id, "grunnlag_id": grunnlag, "gw": d.runde.nummer])
+        await last()
+    }
 
     /// Sekunder til frist, regnet fra det ABSOLUTTE tidspunktet.
     ///
