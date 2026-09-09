@@ -19,6 +19,21 @@ struct Stromsvar: Decodable {
     let tariff: Tariff?
     /// Månedsforbruk to år bakover — for å se om forbruket endrer seg over tid.
     let maaneder: [Maaned]?
+    let maanedsammenligning: Sammenligning?
+
+    struct Sammenligning: Decodable {
+        let aar: [Int]
+        let inneverende: Naavaerende
+        let maaneder: [Rad]
+        struct Naavaerende: Decodable { let aar: Int; let maaned: Int }
+        struct Rad: Decodable, Identifiable {
+            let maaned: Int
+            /// Én verdi per år, `null` der vi ikke har tall. En manglende måned og en
+            /// måned uten forbruk er ikke det samme.
+            let verdier: [Double?]
+            var id: Int { maaned }
+        }
+    }
     /// Like mange dager i år som i fjor, så tallet er sammenlignbart midt i en måned.
     let hittil: Hittil?
 
@@ -91,6 +106,10 @@ struct Stromsvar: Decodable {
         var id: String { navn }
     }
     struct Estimat: Decodable {
+        /// Hele husets forbruk denne måneden, fra nettselskapet. `maalt_*` er
+        /// delmengden vi har egen måling på — de to skal ikke blandes i samme setning.
+        let maaned_kwh: Double?
+        let maaned_kr: Double?
         let maalt_dag_kwh: Double?
         let maalt_dag_kr: Double?
         let maalt_maaned_kwh: Double?
@@ -151,12 +170,22 @@ struct Stromfane: View {
     private func maanedkort(_ s: Stromsvar) -> some View {
         Kort {
             Seksjonstittel(tekst: "Hittil i måneden")
+            // HELE husets forbruk og HELE husets kostnad — samme grunnlag.
+            //
+            // Sto før med kWt fra nettselskapet (hele huset) rett ved siden av kroner
+            // for bare de målte kursene. 714 kWt og 217 kr ved siden av hverandre er
+            // ikke to tall om samme ting, og regnestykket så tullete ut fordi det var det.
             HStack(spacing: 0) {
-                tall(s.estimat.maalt_maaned_kwh.map { String(format: "%.0f", $0) } ?? "–", "kWt målt")
-                tall(s.estimat.maalt_maaned_kr.map { "\(Int($0)) kr" } ?? "–", "så langt")
+                tall(s.estimat.maaned_kwh.map { String(format: "%.0f", $0) } ?? "–", "kWt")
+                tall(s.estimat.maaned_kr.map { "\(Int($0)) kr" } ?? "–", "så langt")
                 tall(s.estimat.anslag_maaned_kr.map { "\(Int($0)) kr" } ?? "–", "hele måneden")
             }
             .padding(.top, 10)
+            if let a = s.estimat.maalt_andel, let m = s.estimat.maalt_maaned_kwh {
+                Text(String(format: "Vi har egen måling på %.0f kWt av dette (%d %%)",
+                            m, Int(a * 100)))
+                    .font(.system(size: 10)).foregroundStyle(Farge.svak).padding(.top, 6)
+            }
             if let d = s.estimat.dag_i_maaned, let n = s.estimat.dager_i_maaned {
                 Stolpe(andel: Double(d) / Double(max(1, n)), høyde: 4).padding(.top, 10)
                 Text("dag \(d) av \(n)")
@@ -193,10 +222,79 @@ struct Stromfane: View {
                     Text("samme antall dager i begge år (\(d))")
                         .font(.system(size: 10)).foregroundStyle(Farge.svak).padding(.top, 6)
                 }
-                if let m = s.maaneder, m.count > 3 {
-                    maanedsgraf(m)
+                if let sml = s.maanedsammenligning, sml.aar.count > 1 {
+                    sammenligningsgraf(sml)
                 }
             }
+        }
+    }
+
+    /// Samme måned, år ved siden av år.
+    ///
+    /// En flat rekke av 24 måneder viser at forbruket svinger, men ikke om september i år
+    /// er høyere enn september i fjor — og det er hele spørsmålet. Her står årene ved
+    /// siden av hverandre i hver måned, med hver sin farge.
+    private func sammenligningsgraf(_ sml: Stromsvar.Sammenligning) -> some View {
+        let maks = sml.maaneder.flatMap { $0.verdier }.compactMap { $0 }.max() ?? 1
+        let navn = ["", "jan", "feb", "mar", "apr", "mai", "jun",
+                    "jul", "aug", "sep", "okt", "nov", "des"]
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                ForEach(Array(sml.aar.enumerated()), id: \.offset) { i, år in
+                    HStack(spacing: 4) {
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(aarsfarge(i, sml.aar.count)).frame(width: 8, height: 8)
+                        Text(String(år)).font(.system(size: 10).monospacedDigit())
+                            .foregroundStyle(Farge.dempet)
+                    }
+                }
+                Spacer()
+            }
+            GeometryReader { g in
+                HStack(alignment: .bottom, spacing: 3) {
+                    ForEach(sml.maaneder) { rad in
+                        HStack(alignment: .bottom, spacing: 1) {
+                            ForEach(Array(rad.verdier.enumerated()), id: \.offset) { i, v in
+                                // Tynne stolper: tre år × tolv måneder er 36 stolper på
+                                // en telefonbredde, og de må få stå fra hverandre.
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(aarsfarge(i, sml.aar.count)
+                                        .opacity(ufullstendig(rad, i, sml) ? 0.45 : 1))
+                                    .frame(height: max(1, ((v ?? 0) / maks) * g.size.height))
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(maxHeight: .infinity, alignment: .bottom)
+            }
+            .frame(height: 64)
+            HStack(spacing: 3) {
+                ForEach(sml.maaneder) { rad in
+                    Text(navn[rad.maaned]).font(.system(size: 8))
+                        .foregroundStyle(Farge.svak).frame(maxWidth: .infinity)
+                }
+            }
+            // Inneværende måned er ikke omme. Uten dette ser en halv september ut som
+            // et krakk ved siden av to hele.
+            Text("Inneværende måned er ikke ferdig, og står dempet.")
+                .font(.system(size: 9)).foregroundStyle(Farge.svak)
+        }
+        .padding(.top, 14)
+    }
+
+    /// Sant for stolpen som representerer måneden vi står i.
+    private func ufullstendig(_ rad: Stromsvar.Sammenligning.Rad, _ i: Int,
+                              _ sml: Stromsvar.Sammenligning) -> Bool {
+        rad.maaned == sml.inneverende.maaned && sml.aar[i] == sml.inneverende.aar
+    }
+
+    /// Eldst er svakest, nyest er sterkest — så rekkefølgen kan leses uten forklaring.
+    private func aarsfarge(_ i: Int, _ antall: Int) -> Color {
+        switch antall - 1 - i {
+        case 0: Farge.aksent
+        case 1: Farge.kjol
+        default: Farge.dempet
         }
     }
 
