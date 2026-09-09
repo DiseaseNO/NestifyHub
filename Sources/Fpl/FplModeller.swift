@@ -162,6 +162,12 @@ struct FplStatus: Decodable {
         /// ble endret, ikke hva som var planlagt — og det er forskjellen når noe ser rart
         /// ut i ettertid.
         let diff: [String]?
+        /// Hvilke beslutninger som faktisk ble utført. `hva_ble_gjort` beskriver nå
+        /// **pakken Thomas valgte**, ikke anbefalingen — de er ikke det samme når han har
+        /// valgt bort noe, og en kvittering som beskriver noe annet enn det som ble gjort
+        /// er verre enn ingen kvittering.
+        let valgte: [String]?
+        let grunnlag_id: String?
     }
 
     /// Dekoder felt for felt, slik at ETT felt som skifter form ikke tar med seg
@@ -426,23 +432,6 @@ final class FplLager {
     private let api: API
     init(api: API) { self.api = api }
 
-    /// Leverer en signert godkjenning av anbefalingen.
-    ///
-    /// Ligger her, ikke i visningen: lageret eier API-et og hentingen, og etter en
-    /// godkjenning må dataene hentes på nytt for å få kvitteringen. To ledd som må
-    /// gjøres i rekkefølge hører til samme sted.
-    ///
-    /// **Vi utfører ingenting.** Vi leverer et signal; kilden kontrollerer sine egne
-    /// sperrer og gjør jobben.
-    func godkjenn() async throws {
-        guard let d = svar?.data, let a = d.anbefaling,
-              let id = a.id, let grunnlag = a.grunnlag_id else {
-            throw APIFeil.nettverk("Anbefalingen mangler id — kan ikke godkjennes.")
-        }
-        try await api.send("/api/fpl/godkjenn",
-                           ["anbefaling_id": id, "grunnlag_id": grunnlag, "gw": d.runde.nummer])
-        await last()
-    }
 
     /// Sekunder til frist, regnet fra det ABSOLUTTE tidspunktet.
     ///
@@ -606,6 +595,68 @@ extension FplLager {
     }
     func hentHistorikk(_ api: API) async -> FplHistorikk? {
         try? await api.hent(Innpakket<FplHistorikk>.self, "/api/fpl/historikk").data
+    }
+    /// Bruker lagerets eget API — utvidelsen ligger i samme fil og ser det.
+    func hentValg() async -> FplValg? {
+        try? await api.hent(Innpakket<FplValg>.self, "/api/fpl/valg").data
+    }
+
+    /// Leverer en signert godkjenning av **den pakken Thomas valgte**.
+    ///
+    /// Begge id-ene kommer fra `valg.json`, ikke fra statusen: `grunnlag_id` er ulikt de
+    /// to stedene, og statusens variant ville blitt avvist.
+    ///
+    /// `anbefaling_id` sier hvilken handling. `grunnlag_id` sier hvilket bilde av verden
+    /// den ble valgt fra — uten den kunne en godkjenning fra to timer siden fortsatt
+    /// utføres etter at en skade snudde alt.
+    func godkjennValg(_ kombinasjonId: String, grunnlagId: String, gw: Int) async throws {
+        try await api.send("/api/fpl/godkjenn",
+                           ["anbefaling_id": kombinasjonId, "grunnlag_id": grunnlagId, "gw": gw])
+        await last()
+    }
+}
+
+/// Valgene Thomas kan ta — hele anbefalingen, eller bare deler av den.
+///
+/// **Appen setter ikke sammen et valg selv.** Kostnaden er ikke additiv (med ett fritt
+/// bytte koster det første 0 og det andre −4; velger man bort det første, blir det andre
+/// gratis), og å velge bort et bytte river i oppstillingen. Kilden regner derfor ut hver
+/// lovlige kombinasjon på forhånd, med sin egen pris og sin egen kontroll. Vi viser dem.
+struct FplValg: Decodable {
+    let runde: Int?
+    let grunnlag_id: String
+    let anbefalt_id: String?
+    /// Ikke-null bare hvis KILDENS egen anbefaling ikke lar seg gjennomføre. Det er en
+    /// feil hos dem, ikke et valg for Thomas — vises tydelig.
+    let anbefaling_ulovlig: String?
+    let beslutninger: [Beslutning]
+    let kombinasjoner: [Kombinasjon]
+
+    struct Beslutning: Decodable, Identifiable {
+        let id: String
+        let type: String
+        /// Alltid til stede og nøktern. `tittel` og `sammendrag` er skrevet av vakta og
+        /// kan mangle — da viser vi ingenting framfor å finne på noe.
+        let beskrivelse: String
+        let tittel: String?
+        let sammendrag: String?
+        let inn: Int?
+        let ut: Int?
+        let krever: [String]?
+    }
+
+    struct Kombinasjon: Decodable, Identifiable {
+        let id: String
+        let beslutninger: [String]
+        let anbefalt: Bool?
+        let lovlig: Bool
+        /// Konsekvensen når pakken ikke er lovlig — «Mangler 3,1M. Thiago må selges
+        /// først.» Det er nettopp dette man vil se når man vurderer å velge bort en del.
+        let hvorfor_ikke: String?
+        let kostnad_poeng: Int?
+        /// Kildens tekst, ordrett. Vi regner ikke prisen selv.
+        let kostnad: String?
+        let bank_etter: Double?
     }
 }
 
