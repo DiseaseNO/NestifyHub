@@ -23,6 +23,9 @@ struct FplUtfor: View {
     /// Sant mens vi venter på kvitteringen fra kilden.
     @State private var venter = false
     @State private var ventetSek = 0
+    /// Hvor stort valgarket åpnes. Er det flere enn ett valg, må det åpnes stort — ellers
+    /// ligger alternativene under folden og det ser ut som det ikke er noe å velge.
+    @State private var arkhøyde: PresentationDetent = .medium
 
     private var d: FplStatus { svar.data }
     private var a: FplStatus.Anbefaling? { d.anbefaling }
@@ -170,7 +173,7 @@ struct FplUtfor: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Farge.flate, for: .navigationBar)
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $arkhøyde)
         .presentationDragIndicator(.visible)
     }
 
@@ -278,6 +281,8 @@ struct FplUtfor: View {
         defer { henter = false }
         let v = await lager.hentValg()
         valg = v
+        // Flere valg → åpne stort, så alle alternativene er synlige med en gang.
+        arkhøyde = (v?.kombinasjoner.count ?? 0) > 1 ? .large : .medium
         // Forhåndsvelg kildens anbefaling: det trygge valget, og det begrunnelsen på
         // skjermen bak faktisk handler om.
         valgtId = v?.kombinasjoner.first(where: { $0.anbefalt == true && $0.lovlig })?.id
