@@ -237,6 +237,7 @@ jobs:
             knips 4-spiller  -server "$VERT" -token "$TOKEN" -skjerm naa -spillerdetalj 1
             knips 5-sporsmal -server "$VERT" -token "$TOKEN" -skjerm naa -sporsmal 1
             knips 6-tropp    -server "$VERT" -token "$TOKEN" -skjerm naa -tropp 1
+            knips 6b-fplvalg -server "$VERT" -token "$TOKEN" -skjerm naa -fplvalg 1
           fi
 
           # Huset mot stubben. Uten dette bygde vi Huset blindt — og det gikk galt: koden

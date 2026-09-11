@@ -61,6 +61,13 @@ struct FplUtfor: View {
             }
         }
         .sheet(isPresented: $visValg) { valgark }
+        .task {
+            // Bare i CI: åpne valgarket automatisk så skjermbildet dekker det.
+            if Testskjerm.fplvalg, kanUtfore {
+                visValg = true
+                await hentValg()
+            }
+        }
     }
 
     // MARK: knappen og ventingen

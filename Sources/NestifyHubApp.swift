@@ -60,6 +60,16 @@ private func seedFraOppstartsargumenter() {
 /// Hvilken skjerm CI skal åpne rett i, gitt som `-skjerm naa|beslutning|historikk|helse`.
 /// Utenfor DEBUG er `valgt` alltid `nil`, så koden finnes ikke i det som installeres.
 enum Testskjerm {
+    /// Åpner FPL-valgarket ved oppstart, `-fplvalg 1`. Uten dette måtte skjermbildet av
+    /// valgene komme av et simulert trykk på Utfør-knappen.
+    static var fplvalg: Bool {
+        #if DEBUG
+        UserDefaults.standard.bool(forKey: "fplvalg")
+        #else
+        false
+        #endif
+    }
+
     /// Åpner spillerdetaljene på første spiller, så skjermbildene i CI dekker en visning
     /// som ellers krever et trykk.
     static var spillerdetalj: Bool {
