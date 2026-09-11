@@ -609,10 +609,20 @@ extension FplLager {
     /// `anbefaling_id` sier hvilken handling. `grunnlag_id` sier hvilket bilde av verden
     /// den ble valgt fra — uten den kunne en godkjenning fra to timer siden fortsatt
     /// utføres etter at en skade snudde alt.
-    func godkjennValg(_ kombinasjonId: String, grunnlagId: String, gw: Int) async throws {
-        try await api.send("/api/fpl/godkjenn",
-                           ["anbefaling_id": kombinasjonId, "grunnlag_id": grunnlagId, "gw": gw])
+    /// Returnerer kvitteringen med én gang hvis backend rakk å få den (path-trigger på
+    /// kildens side), ellers nil — da fortsetter appen å vente og henter status på nytt.
+    @discardableResult
+    func godkjennValg(_ kombinasjonId: String, grunnlagId: String, gw: Int) async throws -> FplStatus.Utforelse? {
+        let svar = try await api.sendOgLes(Godkjennsvar.self, "/api/fpl/godkjenn",
+                                           ["anbefaling_id": kombinasjonId, "grunnlag_id": grunnlagId, "gw": gw])
         await last()
+        return svar.venter == true ? nil : svar.utforelse
+    }
+
+    private struct Godkjennsvar: Decodable {
+        let ok: Bool?
+        let venter: Bool?
+        let utforelse: FplStatus.Utforelse?
     }
 }
 

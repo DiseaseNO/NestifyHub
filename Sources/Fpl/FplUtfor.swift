@@ -293,12 +293,15 @@ struct FplUtfor: View {
         sender = true
         defer { sender = false }
         do {
-            try await lager.godkjennValg(k.id, grunnlagId: v.grunnlag_id,
-                                         gw: v.runde ?? d.runde.nummer)
+            // Backend holder forbindelsen og venter på kvitteringen. Kom den, viser vi
+            // resultatet MED EN GANG — ingen ventestolpe, ingen ut/inn. Rakk ikke backend
+            // det (kildens cron er fortsatt treg), faller vi tilbake på polling.
+            let kvittering = try await lager.godkjennValg(k.id, grunnlagId: v.grunnlag_id,
+                                                          gw: v.runde ?? d.runde.nummer)
             Kjenn.vellykket()
             feil = nil
             visValg = false
-            await vent()
+            if kvittering == nil { await vent() }
         } catch {
             feil = error.localizedDescription
             visValg = false

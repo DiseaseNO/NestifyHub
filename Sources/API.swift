@@ -1,6 +1,12 @@
 import Foundation
 import Observation
 
+/// Til `send` der svaret ikke leses. En tom kropp fra serveren skal ikke bli en
+/// dekodingsfeil, så denne godtar hva som helst.
+struct EmptyDecodable: Decodable {
+    init(from decoder: Decoder) throws {}
+}
+
 enum APIFeil: LocalizedError {
     case ingenServer, ikkeAutorisert, kode(Int), nettverk(String)
     var errorDescription: String? {
@@ -102,17 +108,28 @@ final class API {
     /// Svaret leses ikke: statuskoden er det vi bryr oss om, og en tom kropp skal ikke
     /// bli en dekodingsfeil.
     func send(_ sti: String, _ kropp: [String: Any]) async throws {
+        _ = try await sendOgLes(EmptyDecodable.self, sti, kropp, timeout: 20)
+    }
+
+    /// Som `send`, men dekoder svaret. Brukes der backend gjør jobben ferdig og svarer
+    /// med resultatet — f.eks. godkjenningen som venter på kvitteringen fra kilden.
+    @discardableResult
+    func sendOgLes<T: Decodable>(_ type: T.Type, _ sti: String, _ kropp: [String: Any],
+                                 timeout: TimeInterval = 30) async throws -> T {
         guard let token, let u = adresse(sti) else { throw APIFeil.ingenServer }
         var rq = URLRequest(url: u)
         rq.httpMethod = "POST"
         rq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         rq.setValue("application/json", forHTTPHeaderField: "Content-Type")
         rq.httpBody = try JSONSerialization.data(withJSONObject: kropp)
-        rq.timeoutInterval = 20
-        let (_, svar) = try await URLSession.shared.data(for: rq)
+        // Godkjenn-kallet holdes åpent mens backend venter på kvitteringen; det trenger
+        // mer enn de vanlige 20 sekundene.
+        rq.timeoutInterval = timeout
+        let (data, svar) = try await URLSession.shared.data(for: rq)
         guard let h = svar as? HTTPURLResponse else { throw APIFeil.nettverk("Uventet svar") }
         if h.statusCode == 401 { throw APIFeil.ikkeAutorisert }
         guard (200..<300).contains(h.statusCode) else { throw APIFeil.kode(h.statusCode) }
+        return try JSONDecoder().decode(T.self, from: data)
     }
 
     private func kall<T: Decodable>(_ type: T.Type, _ sti: String, _ q: [String: String], metode: String) async throws -> T {
