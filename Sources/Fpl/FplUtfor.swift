@@ -358,16 +358,12 @@ struct FplUtfor: View {
             }
             // Kontrollkjøringen, bak en fold: teknisk, og skal være tilgjengelig uten å
             // være det første man møter.
-            if let linjer = k.diff, !linjer.isEmpty {
+            if let diff = k.diff?.trimmingCharacters(in: .whitespacesAndNewlines), !diff.isEmpty {
                 DisclosureGroup("Hva som ble endret") {
-                    VStack(alignment: .leading, spacing: 2) {
-                        ForEach(linjer, id: \.self) { linje in
-                            Text(linje).font(.system(size: 10, design: .monospaced))
-                                .foregroundStyle(Farge.dempet)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 4)
+                    Text(diff).font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(Farge.dempet)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 4)
                 }
                 .font(.caption2).tint(Farge.svak).foregroundStyle(Farge.dempet)
             }

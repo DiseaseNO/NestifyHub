@@ -163,10 +163,11 @@ struct FplStatus: Decodable {
         /// den fulle eksporten. Da: vis kvitteringen, men ikke stol på lagbildet ennå.
         /// Forsvinner når hele fila er ferskt.
         let resten_oppdateres: Bool?
-        /// Linjene fra kildens kontrollkjøring før innsending. Den viser hva som faktisk
-        /// ble endret, ikke hva som var planlagt — og det er forskjellen når noe ser rart
-        /// ut i ettertid.
-        let diff: [String]?
+        /// Kildens kontrollkjøring før innsending — hva som FAKTISK ble endret. Kommer
+        /// som én tekst med linjeskift, IKKE en liste: appen antok `[String]`, og da
+        /// feilet hele kvitteringen med «isn't in the correct format» mens byttet i
+        /// virkeligheten var utført. Vi eier ikke formatet — det gjør kilden.
+        let diff: String?
         /// Hvilke beslutninger som faktisk ble utført. `hva_ble_gjort` beskriver nå
         /// **pakken Thomas valgte**, ikke anbefalingen — de er ikke det samme når han har
         /// valgt bort noe, og en kvittering som beskriver noe annet enn det som ble gjort
