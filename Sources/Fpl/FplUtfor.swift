@@ -301,7 +301,14 @@ struct FplUtfor: View {
             Kjenn.vellykket()
             feil = nil
             visValg = false
-            if kvittering == nil { await vent() }
+            if kvittering == nil {
+                await vent()
+            } else {
+                // Kvitteringen er her, men laget kan henge noen sekunder etter mens kilden
+                // skriver den fulle eksporten. Hent til troppen er ferskt, så lagbildet
+                // oppdateres live uten at Thomas må gjøre noe.
+                await lager.ventPaaFerskeLag()
+            }
         } catch {
             feil = error.localizedDescription
             visValg = false
@@ -340,6 +347,14 @@ struct FplUtfor: View {
             }
             if let f = k.feil, !f.isEmpty {
                 Text(f).font(.caption2).foregroundStyle(Farge.avvik)
+            }
+            // Laget henger noen sekunder etter kvitteringen mens kilden skriver den fulle
+            // eksporten. Si fra, så «utført» ikke ser rart ut ved siden av en gammel tropp.
+            if k.resten_oppdateres == true {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.mini).tint(Farge.dempet)
+                    Text("Oppdaterer laget …").font(.caption2).foregroundStyle(Farge.svak)
+                }
             }
             // Kontrollkjøringen, bak en fold: teknisk, og skal være tilgjengelig uten å
             // være det første man møter.

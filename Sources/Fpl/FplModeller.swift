@@ -158,6 +158,11 @@ struct FplStatus: Decodable {
         /// fra forrige runde skal ikke se ut som svar på dagens knapp.
         let gjelder_naavaerende: Bool?
         let merknad: String?
+        /// Sant når kvitteringen er lappet inn, men RESTEN av fila ennå er fra før
+        /// utførelsen — troppen og laget henger noen sekunder etter mens kilden kjører
+        /// den fulle eksporten. Da: vis kvitteringen, men ikke stol på lagbildet ennå.
+        /// Forsvinner når hele fila er ferskt.
+        let resten_oppdateres: Bool?
         /// Linjene fra kildens kontrollkjøring før innsending. Den viser hva som faktisk
         /// ble endret, ikke hva som var planlagt — og det er forskjellen når noe ser rart
         /// ut i ettertid.
@@ -617,6 +622,20 @@ extension FplLager {
                                            ["anbefaling_id": kombinasjonId, "grunnlag_id": grunnlagId, "gw": gw])
         await last()
         return svar.venter == true ? nil : svar.utforelse
+    }
+
+    /// Henter til LAGET er ferskt etter en utførelse.
+    ///
+    /// Kvitteringen kommer på halvannet sekund, men kilden bruker noen sekunder til på å
+    /// skrive den fulle eksporten — til da er troppen fortsatt fra før byttet, og
+    /// `utforelse.resten_oppdateres` er satt. Vi henter til flagget er borte, så laget i
+    /// appen oppdateres av seg selv når det nye bildet lander.
+    func ventPaaFerskeLag() async {
+        for _ in 0..<12 {
+            if svar?.data.utforelse?.resten_oppdateres != true { return }
+            try? await Task.sleep(for: .seconds(2))
+            await last()
+        }
     }
 
     private struct Godkjennsvar: Decodable {
