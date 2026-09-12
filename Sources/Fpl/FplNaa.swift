@@ -244,9 +244,10 @@ struct FplNaa: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("ANBEFALING").font(.caption2.weight(.semibold)).foregroundStyle(Farge.dempet)
 
-                if let a {
-                    // Setningen først. De strukturerte feltene ER forståelige; det er
-                    // fritekstet som ikke er det, og da skal fritekstet ikke stå øverst.
+                if let a, lager.harUtforbartValg {
+                    // Det ER noe å utføre: vis anbefalingen full, med begrunnelsen øverst.
+                    // Setningen først — de strukturerte feltene ER forståelige; fritekstet
+                    // er det ikke, og skal ikke stå øverst.
                     Text(a.sammendrag ?? handling(a))
                         .font(.callout.weight(.medium)).foregroundStyle(Farge.tekst)
                         .fixedSize(horizontal: false, vertical: true)
@@ -263,13 +264,22 @@ struct FplNaa: View {
                         if let c = a.chip { Text("· chip: \(c)").font(.caption2).foregroundStyle(Diagramfarge.varsel) }
                     }
                     .foregroundStyle(Farge.dempet)
-                    // Vaktas eget notat er en arbeidslogg med forkortelser og filnavn.
-                    // Den skal være tilgjengelig, men ikke være det første man møter.
                     if let n = a.notat {
                         DisclosureGroup("Vaktas notat") {
                             Text(n).font(.caption2).foregroundStyle(Farge.dempet)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .padding(.top, 4)
+                        }
+                        .font(.caption2).tint(Farge.svak).foregroundStyle(Farge.dempet)
+                    }
+                } else if let a {
+                    // Ingenting å utføre nå: «Laget er klart» (fra FplUtfor under) er
+                    // hovedbudskapet. Kildens vurdering — som kan gjelde FRAMTIDIGE runder
+                    // — legges bak en fold, så den er tilgjengelig uten å motsi «klart».
+                    if let tekst = a.sammendrag ?? Optional(handling(a)), !tekst.isEmpty {
+                        DisclosureGroup("Kildens vurdering framover") {
+                            Text(tekst).font(.caption2).foregroundStyle(Farge.dempet)
+                                .fixedSize(horizontal: false, vertical: true).padding(.top, 4)
                         }
                         .font(.caption2).tint(Farge.svak).foregroundStyle(Farge.dempet)
                     }

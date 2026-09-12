@@ -428,10 +428,20 @@ struct FplSvar: Decodable {
 @Observable
 final class FplLager {
     private(set) var svar: FplSvar?
+    /// Valgene, hentet sammen med statusen. Kilde til hva som faktisk KAN utføres —
+    /// `valg.json` og anbefalingsteksten kan være uenige (regnet mot ulike grunnlag),
+    /// og da er det denne som teller, siden godkjenningen sendes mot dens grunnlag.
+    private(set) var valg: FplValg?
     private(set) var feil: String?
     private(set) var henter = false
     /// Når vi sist snakket med serveren — uavhengig av hvor gamle tallene fra kilden er.
     private(set) var sistSjekket: Date?
+
+    /// Sant når det finnes en lovlig kombinasjon med faktiske beslutninger — altså noe å
+    /// UTFØRE. «Gjør ingenting» teller ikke.
+    var harUtforbartValg: Bool {
+        (valg?.kombinasjoner ?? []).contains { $0.lovlig && !$0.beslutninger.isEmpty }
+    }
     /// Hentingen som pågår, så et nedtrekk venter på den framfor å gjøre ingenting.
     private var pågående: Task<Void, Never>?
 
@@ -478,6 +488,9 @@ final class FplLager {
             Ordliste.fraKilde = nytt.data.ordliste ?? [:]
             svar = nytt
             feil = nil
+            // Valgene følger statusen. Feiler de, beholder vi de forrige framfor å la
+            // tilstanden hoppe til «ingenting å gjøre» på et enkelt glapp.
+            if let v = await hentValg() { valg = v }
         } catch {
             if !erAvbrutt(error) { feil = error.localizedDescription }
         }
