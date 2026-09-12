@@ -121,7 +121,7 @@ struct FplUtfor: View {
             }
             // En strek som beveger seg er forskjellen på å vente og på å lure på om noe
             // i det hele tatt skjedde.
-            Stolpe(andel: Double(ventetSek) / 90, høyde: 3)
+            Stolpe(andel: Double(ventetSek) / 30, høyde: 3)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -296,13 +296,13 @@ struct FplUtfor: View {
             // Backend holder forbindelsen og venter på kvitteringen. Kom den, viser vi
             // resultatet MED EN GANG — ingen ventestolpe, ingen ut/inn. Rakk ikke backend
             // det (kildens cron er fortsatt treg), faller vi tilbake på polling.
-            let kvittering = try await lager.godkjennValg(k.id, grunnlagId: v.grunnlag_id,
-                                                          gw: v.runde ?? d.runde.nummer)
+            let (kvittering, godkjent) = try await lager.godkjennValg(
+                k.id, grunnlagId: v.grunnlag_id, gw: v.runde ?? d.runde.nummer)
             Kjenn.vellykket()
             feil = nil
             visValg = false
             if kvittering == nil {
-                await vent()
+                await vent(godkjent: godkjent)
             } else {
                 // Kvitteringen er her, men laget kan henge noen sekunder etter mens kilden
                 // skriver den fulle eksporten. Hent til troppen er ferskt, så lagbildet
@@ -319,15 +319,24 @@ struct FplUtfor: View {
     ///
     /// Gir vi opp, står ventetilstanden igjen framfor å påstå at noe gikk galt — den kan
     /// godt ha blitt utført ett sekund etter at vi sluttet å se etter.
-    private func vent() async {
+    private static let terminal: Set<String> =
+        ["utfort", "avvist_endret_grunnlag", "avvist_frist", "feilet"]
+
+    private func vent(godkjent: String?) async {
         venter = true
         ventetSek = 0
-        for _ in 0..<18 {
-            try? await Task.sleep(for: .seconds(5))
-            withAnimation { ventetSek += 5 }
+        // 30 sek. Path-triggeren gir kvittering på ~1,5 s, og backend har alt ventet 25 s
+        // synkront — dette er bare et fallback. Vi breaker straks DENNE godkjenningens
+        // kvittering er terminal, kjent igjen på `godkjent`. En annen kvittering i
+        // status.json (også en forurenset fra en avvist test) matcher ikke og holder oss
+        // ikke fanget lenger enn nødvendig.
+        for _ in 0..<15 {
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation { ventetSek += 2 }
             await lager.last()
             if let u = lager.svar?.data.utforelse,
-               u.status != "ingen", u.gjelder_naavaerende != false {
+               Self.terminal.contains(u.status),
+               godkjent == nil || u.godkjent == godkjent {
                 Kjenn.vellykket()
                 break
             }
