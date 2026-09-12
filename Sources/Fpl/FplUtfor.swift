@@ -38,24 +38,29 @@ struct FplUtfor: View {
         return u
     }
 
-    private var kanUtfore: Bool {
+    /// Er det en faktisk endring anbefalt — noe å UTFØRE?
+    ///
+    /// Dette, ikke kvitteringen, styrer om knappen vises. En kvittering fra i går skal
+    /// ikke skjule en ny anbefaling i dag: da ser Thomas «utført» og tror alt er i orden,
+    /// mens kilden faktisk foreslår et nytt bytte.
+    private var harAnbefaltEndring: Bool {
         guard let a, a.finnes == true else { return false }
-        // Låst runde: fristen har gått, og kilden ville uansett avvist med `avvist_frist`.
-        if d.runde.laast { return false }
-        return kvittering == nil && !venter
+        return !(a.bytter ?? []).isEmpty || a.endrer_oppstilling == true || a.chip != nil
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let k = kvittering {
-                kvitteringsrad(k)
-            } else if venter {
+            if venter {
                 venterad
-            } else if kanUtfore {
-                knapp
-            } else if d.runde.laast, a?.finnes == true {
+            } else if d.runde.laast, harAnbefaltEndring {
                 rad("lock", Farge.svak, "Runden er låst",
                     "Fristen har passert — anbefalingen kan ikke utføres nå.")
+            } else if harAnbefaltEndring {
+                knapp
+            } else {
+                // Ingenting anbefalt: laget står som det skal. Tydelig, grønt, og med
+                // siste utførelse som en liten historikk-linje under.
+                altKlart
             }
 
             if let feil {
@@ -66,11 +71,49 @@ struct FplUtfor: View {
         .sheet(isPresented: $visValg) { valgark }
         .task {
             // Bare i CI: åpne valgarket automatisk så skjermbildet dekker det.
-            if Testskjerm.fplvalg, kanUtfore {
+            if Testskjerm.fplvalg, harAnbefaltEndring {
                 visValg = true
                 await hentValg()
             }
         }
+    }
+
+    /// «Laget er klart» — ingenting å gjøre.
+    ///
+    /// Det Thomas ba om: tydelig at oppstillingen og alle endringer er i orden, og at det
+    /// ikke ligger nye anbefalinger. Grønt, med et ord om hva som sist ble gjort.
+    private var altKlart: some View {
+        let k = kvittering
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: "checkmark.seal.fill").font(.footnote)
+                    .foregroundStyle(Farge.ok).frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Laget er klart").font(.footnote.weight(.semibold))
+                        .foregroundStyle(Farge.tekst)
+                    Text("Ingen endringer anbefalt nå. Oppstilling og bytter er i orden.")
+                        .font(.caption2).foregroundStyle(Farge.dempet)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            // Siste utførelse som historikk — bekreftelsen på at det Thomas gjorde, ble
+            // gjort. Bare når den gjelder inneværende runde.
+            if let k, k.status == "utfort", k.gjelder_naavaerende != false,
+               let hva = k.hva_ble_gjort, !hva.isEmpty {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "clock.arrow.circlepath").font(.system(size: 10))
+                        .foregroundStyle(Farge.svak).padding(.top, 1)
+                    Text("Sist utført: \(hva)").font(.caption2).foregroundStyle(Farge.svak)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 27)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Farge.ok.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: knappen og ventingen
