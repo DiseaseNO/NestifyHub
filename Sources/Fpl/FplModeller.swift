@@ -461,6 +461,15 @@ final class FplLager {
     var avviste: [FplValg.Beslutning] {
         (valg?.beslutninger ?? []).filter { $0.avvist == true }
     }
+
+    /// Nei som har FALT BORT — spilleren fikk et nytt flagg etter at han sa nei, så
+    /// spørsmålet er stilt på nytt. `avvisning_utloept` bærer begrunnelsen, og den skal
+    /// vises: ellers ser det ut som appen glemte hva han sa.
+    var utlopteAvvisninger: [FplValg.Beslutning] {
+        (valg?.beslutninger ?? []).filter {
+            ($0.avvisning_utloept?.isEmpty == false) && $0.avvist != true
+        }
+    }
     /// Hentingen som pågår, så et nedtrekk venter på den framfor å gjøre ingenting.
     private var pågående: Task<Void, Never>?
 

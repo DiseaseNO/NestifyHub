@@ -54,6 +54,27 @@ struct FplUtfor: View {
                 rad("lock", Farge.svak, "Runden er låst",
                     "Fristen har passert — anbefalingen kan ikke utføres nå.")
             } else if harAnbefaltEndring {
+                // Et nei som falt bort pga nytt flagg — forklar hvorfor spørsmålet er
+                // tilbake, ellers ser det ut som appen glemte hva Thomas sa.
+                ForEach(lager.utlopteAvvisninger) { b in
+                    if let tekst = b.avvisning_utloept {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "arrow.uturn.backward.circle").font(.caption)
+                                .foregroundStyle(Farge.aksent).padding(.top, 1)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Kom opp igjen: \(b.tittel ?? b.beskrivelse)")
+                                    .font(.caption2.weight(.medium)).foregroundStyle(Farge.tekst)
+                                Text(tekst).font(.caption2).foregroundStyle(Farge.dempet)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Farge.aksent.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                }
                 knapp
             } else {
                 // Ingenting anbefalt: laget står som det skal. Tydelig, grønt, og med
