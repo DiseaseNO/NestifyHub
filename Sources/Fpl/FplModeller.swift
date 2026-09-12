@@ -617,12 +617,16 @@ extension FplLager {
     /// utføres etter at en skade snudde alt.
     /// Returnerer kvitteringen med én gang hvis backend rakk å få den (path-trigger på
     /// kildens side), ellers nil — da fortsetter appen å vente og henter status på nytt.
+    /// Returnerer kvitteringen hvis backend rakk den (path-trigger, ~1,5 s), ellers nil.
+    /// `godkjent`-tidsstempelet følger alltid med, så en videre polling kjenner igjen
+    /// NØYAKTIG denne godkjenningen framfor en annen kvittering i status.json.
     @discardableResult
-    func godkjennValg(_ kombinasjonId: String, grunnlagId: String, gw: Int) async throws -> FplStatus.Utforelse? {
+    func godkjennValg(_ kombinasjonId: String, grunnlagId: String, gw: Int) async throws
+        -> (kvittering: FplStatus.Utforelse?, godkjent: String?) {
         let svar = try await api.sendOgLes(Godkjennsvar.self, "/api/fpl/godkjenn",
                                            ["anbefaling_id": kombinasjonId, "grunnlag_id": grunnlagId, "gw": gw])
         await last()
-        return svar.venter == true ? nil : svar.utforelse
+        return (svar.venter == true ? nil : svar.utforelse, svar.godkjent)
     }
 
     /// Henter til LAGET er ferskt etter en utførelse.
@@ -643,6 +647,7 @@ extension FplLager {
         let ok: Bool?
         let venter: Bool?
         let utforelse: FplStatus.Utforelse?
+        let godkjent: String?
     }
 }
 
