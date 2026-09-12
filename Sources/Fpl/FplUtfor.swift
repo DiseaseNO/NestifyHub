@@ -23,6 +23,11 @@ struct FplUtfor: View {
     /// Sant mens vi venter på kvitteringen fra kilden.
     @State private var venter = false
     @State private var ventetSek = 0
+    /// Valgene hentes opp front, ikke bare ved trykk: de avgjør om det FAKTISK er noe å
+    /// utføre. `valg.json` og anbefalingsteksten kan være uenige (kilden regnet dem mot
+    /// ulike grunnlag) — og da er det valg.json som teller, siden godkjenningen sendes
+    /// mot dens grunnlag.
+    @State private var valgHentet = false
     /// Hvor stort valgarket åpnes. Er det flere enn ett valg, må det åpnes stort — ellers
     /// ligger alternativene under folden og det ser ut som det ikke er noe å velge.
     @State private var arkhøyde: PresentationDetent = .medium
@@ -38,19 +43,31 @@ struct FplUtfor: View {
         return u
     }
 
-    /// Er det en faktisk endring anbefalt — noe å UTFØRE?
-    ///
-    /// Dette, ikke kvitteringen, styrer om knappen vises. En kvittering fra i går skal
-    /// ikke skjule en ny anbefaling i dag: da ser Thomas «utført» og tror alt er i orden,
-    /// mens kilden faktisk foreslår et nytt bytte.
+    /// Kombinasjonene som faktisk kan utføres — lovlige, og med minst én beslutning.
+    /// «Gjør ingenting» teller ikke som noe å gjøre.
+    private var utforbareValg: [FplValg.Kombinasjon] {
+        (valg?.kombinasjoner ?? []).filter { $0.lovlig && !$0.beslutninger.isEmpty }
+    }
+
+    /// Er det en faktisk endring å UTFØRE? Styres av valg.json når vi har den, ellers
+    /// av anbefalingen. Ikke av kvitteringen — en kvittering fra i går skal ikke skjule
+    /// en ny anbefaling i dag.
     private var harAnbefaltEndring: Bool {
+        if valgHentet { return !utforbareValg.isEmpty }
         guard let a, a.finnes == true else { return false }
         return !(a.bytter ?? []).isEmpty || a.endrer_oppstilling == true || a.chip != nil
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if venter {
+            if !valgHentet {
+                // Sjekker om det er noe å gjøre. Uten dette flimrer knappen fram et
+                // øyeblikk før valg.json er hentet, og forsvinner igjen.
+                HStack(spacing: 7) {
+                    ProgressView().controlSize(.mini).tint(Farge.dempet)
+                    Text("Sjekker anbefaling …").font(.caption2).foregroundStyle(Farge.svak)
+                }
+            } else if venter {
                 venterad
             } else if d.runde.laast, harAnbefaltEndring {
                 rad("lock", Farge.svak, "Runden er låst",
@@ -70,10 +87,12 @@ struct FplUtfor: View {
         }
         .sheet(isPresented: $visValg) { valgark }
         .task {
+            // Hent valgene opp front, så tilstanden er avgjort før noe tegnes.
+            if valg == nil { valg = await lager.hentValg() }
+            valgHentet = true
             // Bare i CI: åpne valgarket automatisk så skjermbildet dekker det.
             if Testskjerm.fplvalg, harAnbefaltEndring {
                 visValg = true
-                await hentValg()
             }
         }
     }
