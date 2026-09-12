@@ -250,6 +250,14 @@ struct FplStatus: Decodable {
         let kaptein: Navngitt?
         let vise: Navngitt?
         let endrer_oppstilling: Bool?
+        /// Teller bare det som IKKE er avvist.
+        let gjenstaar: Int?
+        let avvist_antall: Int?
+        /// Ingenting venter på svar — utført ELLER avvist. STYR KNAPPEN PÅ DENNE, ikke på
+        /// `gjennomfort`. Er den true: ingen knapp, «Laget er klart».
+        let avklart: Bool?
+        /// Pakken uten det avviste — det appen tilbyr.
+        let foreslatt_id: String?
         let notat: String?
         /// Kildens egen korte formulering av hva som skal gjøres. Vinner over setningen
         /// appen setter sammen selv — den som skrev anbefalingen vet hvorfor.
@@ -437,10 +445,21 @@ final class FplLager {
     /// Når vi sist snakket med serveren — uavhengig av hvor gamle tallene fra kilden er.
     private(set) var sistSjekket: Date?
 
-    /// Sant når det finnes en lovlig kombinasjon med faktiske beslutninger — altså noe å
-    /// UTFØRE. «Gjør ingenting» teller ikke.
+    /// Sant når det er noe som VENTER PÅ SVAR — verken utført eller avvist.
+    ///
+    /// Styres av `anbefaling.avklart` (kilden teller selv, og trekker fra det avviste).
+    /// Er den ikke levert ennå, faller vi tilbake på den foreslåtte pakken: har den
+    /// faktiske beslutninger, er det noe å gjøre.
     var harUtforbartValg: Bool {
-        (valg?.kombinasjoner ?? []).contains { $0.lovlig && !$0.beslutninger.isEmpty }
+        if let avklart = svar?.data.anbefaling?.avklart { return !avklart }
+        guard let v = valg, let fid = v.foreslatt_id ?? v.anbefalt_id,
+              let k = v.kombinasjoner.first(where: { $0.id == fid }) else { return false }
+        return k.lovlig && !k.beslutninger.isEmpty
+    }
+
+    /// Beslutninger Thomas har sagt nei til, som fortsatt gjelder.
+    var avviste: [FplValg.Beslutning] {
+        (valg?.beslutninger ?? []).filter { $0.avvist == true }
     }
     /// Hentingen som pågår, så et nedtrekk venter på den framfor å gjøre ingenting.
     private var pågående: Task<Void, Never>?
@@ -656,6 +675,17 @@ extension FplLager {
         }
     }
 
+    /// Sier nei til beslutninger, eller angrer et nei (`angre: true`).
+    ///
+    /// Backend leverer avvisningen og venter på at kildens eksport reflekterer den, så
+    /// dataene er ferske når vi returnerer — samme mønster som godkjenning.
+    func avvis(_ beslutninger: [String], angre: Bool = false) async throws {
+        var kropp: [String: Any] = ["beslutninger": beslutninger, "gw": svar?.data.runde.nummer ?? 0]
+        if angre { kropp["angre"] = true }
+        try await api.send("/api/fpl/avvis", kropp)
+        await last()
+    }
+
     private struct Godkjennsvar: Decodable {
         let ok: Bool?
         let venter: Bool?
@@ -673,7 +703,13 @@ extension FplLager {
 struct FplValg: Decodable {
     let runde: Int?
     let grunnlag_id: String
+    /// Vaktas råd — står uendret selv om Thomas har avvist deler av det. Vi TILBYR ikke
+    /// denne; et råd som skriver seg om etter hva brukeren svarer, er ikke lenger et råd.
     let anbefalt_id: String?
+    /// Pakken UTEN det Thomas har sagt nei til. Det er DENNE appen tilbyr som handling.
+    /// Har han avvist alt, peker den på «gjør ingenting».
+    let foreslatt_id: String?
+    let avvist_antall: Int?
     /// Ikke-null bare hvis KILDENS egen anbefaling ikke lar seg gjennomføre. Det er en
     /// feil hos dem, ikke et valg for Thomas — vises tydelig.
     let anbefaling_ulovlig: String?
@@ -691,6 +727,12 @@ struct FplValg: Decodable {
         let inn: Int?
         let ut: Int?
         let krever: [String]?
+        /// Han har sagt nei, og neiet gjelder fortsatt.
+        let avvist: Bool?
+        let avvist_tidspunkt: String?
+        /// Tekst hvis neiet har falt bort (rundeskifte, eller nytt flagg på en spiller).
+        /// Vis den — ellers ser det ut som appen glemte hva han sa.
+        let avvisning_utloept: String?
     }
 
     struct Kombinasjon: Decodable, Identifiable {

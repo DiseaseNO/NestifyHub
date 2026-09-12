@@ -19,6 +19,7 @@ struct FplUtfor: View {
     @State private var henter = false
     @State private var valgtId: String?
     @State private var sender = false
+    @State private var avviser = false
     @State private var feil: String?
     /// Sant mens vi venter på kvitteringen fra kilden.
     @State private var venter = false
@@ -103,6 +104,21 @@ struct FplUtfor: View {
                         .foregroundStyle(Farge.svak).padding(.top, 1)
                     Text("Sist utført: \(hva)").font(.caption2).foregroundStyle(Farge.svak)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 27)
+            }
+            // Det Thomas har sagt nei til — lavmælt, med mulighet til å ombestemme seg.
+            // Uten dette ser det ut som appen bare droppet anbefalingen.
+            ForEach(lager.avviste) { b in
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "hand.thumbsdown.fill").font(.system(size: 10))
+                        .foregroundStyle(Farge.svak).padding(.top, 1)
+                    Text("Avvist: \(b.tittel ?? b.beskrivelse)").font(.caption2)
+                        .foregroundStyle(Farge.svak).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 6)
+                    Button("Angre") { Task { await angre([b.id]) } }
+                        .font(.caption2.weight(.medium)).foregroundStyle(Farge.aksent)
+                        .disabled(avviser)
                 }
                 .padding(.leading, 27)
             }
@@ -242,11 +258,41 @@ struct FplUtfor: View {
                 }
                 .buttonStyle(Trykkflate())
                 .disabled(sender)
+                // «Nei takk» avviser vaktas anbefaling, så den ikke foreslås igjen denne
+                // runden. Det er forskjellen på «ikke nå» (Avbryt) og «nei» (huskes).
+                if let anbefalt = v.kombinasjoner.first(where: { $0.anbefalt == true }),
+                   !anbefalt.beslutninger.isEmpty {
+                    Button {
+                        Task { await avvis(anbefalt.beslutninger) }
+                    } label: {
+                        HStack(spacing: 7) {
+                            if avviser { ProgressView().controlSize(.mini).tint(Farge.dempet) }
+                            else { Image(systemName: "hand.thumbsdown").font(.caption) }
+                            Text(avviser ? "Avviser …" : "Nei takk til anbefalingen")
+                                .font(.footnote.weight(.medium))
+                        }
+                        .frame(maxWidth: .infinity).padding(.vertical, 10)
+                        .foregroundStyle(Farge.svak)
+                    }
+                    .buttonStyle(Trykkflate())
+                    .disabled(avviser || sender)
+                }
                 Button("Avbryt") { visValg = false }
                     .font(.callout).foregroundStyle(Farge.dempet).padding(.vertical, 6)
             }
             .padding(.horizontal, 18).padding(.bottom, 10)
         }
+    }
+
+    private func avvis(_ beslutninger: [String]) async {
+        avviser = true
+        defer { avviser = false }
+        do {
+            try await lager.avvis(beslutninger)
+            Kjenn.vellykket()
+            feil = nil
+            visValg = false
+        } catch { feil = error.localizedDescription }
     }
 
     private func kombinasjonskort(_ k: FplValg.Kombinasjon, _ v: FplValg) -> some View {
@@ -316,6 +362,13 @@ struct FplUtfor: View {
 
     // MARK: sending og venting
 
+    private func angre(_ beslutninger: [String]) async {
+        avviser = true
+        defer { avviser = false }
+        do { try await lager.avvis(beslutninger, angre: true); Kjenn.vellykket(); feil = nil }
+        catch { feil = error.localizedDescription }
+    }
+
     private func hentValg() async {
         henter = true
         defer { henter = false }
@@ -325,7 +378,10 @@ struct FplUtfor: View {
         arkhøyde = (v?.kombinasjoner.count ?? 0) > 1 ? .large : .medium
         // Forhåndsvelg kildens anbefaling: det trygge valget, og det begrunnelsen på
         // skjermen bak faktisk handler om.
-        valgtId = v?.kombinasjoner.first(where: { $0.anbefalt == true && $0.lovlig })?.id
+        // Forhåndsvelg den FORESLÅTTE pakken (uten det avviste), ikke vaktas råd.
+        let foreslatt = v?.foreslatt_id ?? v?.anbefalt_id
+        valgtId = v?.kombinasjoner.first(where: { $0.id == foreslatt && $0.lovlig })?.id
+            ?? v?.kombinasjoner.first(where: { $0.anbefalt == true && $0.lovlig })?.id
             ?? v?.kombinasjoner.first(where: { $0.lovlig })?.id
     }
 
