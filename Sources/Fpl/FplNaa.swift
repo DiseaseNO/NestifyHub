@@ -152,16 +152,21 @@ struct FplNaa: View {
     @ViewBuilder
     private func topp(_ s: FplSvar) -> some View {
         let laast = s.data.runde.laast
-        let paagaar = (s.data.runde.paagaaende ?? 0) > 0
+        // Kampene RULLER akkurat nå — ikke bare «is_current står på en runde», som alltid
+        // er sant mellom to frister. Fylles av kilden fra fixtures (started && !finished).
+        // Mangler flagget, viser vi nedtellingen som før.
+        let paagaarNaa = s.data.runde.paagaar_naa == true
         VStack(alignment: .leading, spacing: 4) {
             Text("Runde \(s.data.runde.nummer)")
                 .font(.footnote).foregroundStyle(Farge.dempet)
 
-            if paagaar {
+            if paagaarNaa {
                 // En runde SPILLES nå. Da er nedtelling til neste frist feil fokus — det
-                // Thomas vil vite er hvordan laget gjør det akkurat nå. «X siden frist»
-                // midt i en runde er bare støy.
-                Label("Runde \(s.data.runde.paagaaende ?? 0) pågår", systemImage: "sportscourt.fill")
+                // Thomas vil vite er hvordan laget gjør det akkurat nå. Live-poengene
+                // henger på kilden; til de kommer viser vi i det minste at runden ruller
+                // i stedet for et stort «X til/siden frist» som ikke er poenget nå.
+                Label("Runde \(s.data.runde.paagaaende ?? s.data.runde.nummer) pågår",
+                      systemImage: "sportscourt.fill")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(Diagramfarge.varsel)
                 if let sn = s.data.runde.snitt_liga, sn > 0 {

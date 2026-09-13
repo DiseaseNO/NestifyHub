@@ -288,6 +288,14 @@ struct FplStatus: Decodable {
         /// 0 før runden er spilt — FPLs eget felt fylles først underveis.
         /// **Ikke vis 0 som «snittet er null».**
         let snitt_liga: Int?
+        /// Spilles kampene i den pågående runden akkurat nå?
+        ///
+        /// `paagaaende` (FPLs `is_current`) står fra én frist til neste og sier
+        /// derfor ingenting om kampene rulles i øyeblikket. Dette feltet er
+        /// bestilt fra kilden (`bestilling-live-poeng.md`) og fylles av
+        /// `fixtures.started && !finished`. Mangler det, er svaret «vet ikke» →
+        /// appen viser nedtellingen som før. **Ikke gjett fra `paagaaende`.**
+        let paagaar_naa: Bool?
     }
     // `timer_til_frist` fantes i v1–v2 og er FJERNET i v3. Den ble regnet ut ved skriving
     // og forfalt aldri — målt 9,5 timer feil. Nedtellingen regnes fra `frist`.
