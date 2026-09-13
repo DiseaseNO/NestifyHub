@@ -137,6 +137,64 @@ struct FplStatus: Decodable {
     /// Odds-avledet per lag, alle 20, nøklet på klubbnavn. **Framoverskuende.**
     let kampforventning: [String: Kampforventning]?
 
+    /// Live-stilling i runden som spilles. Kommer bare når `runde.paagaar_naa`.
+    /// Se `svar-til-smarthus-8.md` i FPL-repoet.
+    ///
+    /// ⚠️ **`spillere` er rundens EGNE picks, ikke `tropp`.** `tropp` er my-team, altså
+    /// laget for neste frist — gjør Thomas et bytte nå, skiller de lag, og en spiller som
+    /// fortsatt gir poeng i den rullende runden forsvinner fra `tropp`. Tegn live-runden
+    /// fra `live.spillere`, ikke fra `tropp`.
+    let live: Live?
+
+    struct Live: Decodable {
+        let runde: Int?
+        /// Lagets live totalpoeng — med kaptein, uten benk. Autoritativt (verifisert
+        /// 38 = 38 mot FPL). Kan overstige FPLs `entry_history.points` med nøyaktig
+        /// `bonus_forelopig_sum`, fordi vi regner foreløpig bonus fra BPS.
+        let poeng: Int?
+        let forventet: Double?
+        let avvik: Double?
+        let spillere_ferdig: Int?
+        let spillere_igjen: Int?
+        let spillere_i_spill: Int?
+        let kaptein_spilte: Bool?
+        /// `"spiller"` / `"ferdig"` / `"ikke_startet"` / `"spilte_ikke"`. Bare
+        /// `"spilte_ikke"` er en alarm — `kaptein_spilte == false` alene betyr også
+        /// «kampen har ikke startet», som ikke er noe å varsle om.
+        let kaptein_status: String?
+        let bonus_forelopig_sum: Int?
+        let kaptein: String?
+        let kaptein_byttet_til_vise: Bool?
+        let oppdatert: String?
+        let spillere: [Spiller]?
+
+        struct Spiller: Decodable, Identifiable {
+            let id: Int
+            let navn: String
+            /// FPL-klubbkode (Int), ikke klubbnavnet som `FplStatus.Spiller.klubb` er.
+            let klubb: Int?
+            let plass: Int
+            let i_xi: Bool
+            let kaptein: Bool
+            let vise: Bool
+            let runde: Int?
+            let poeng: Int?
+            /// Poeng slik de teller for OSS: kaptein × 2, og 0 for en benkspiller som
+            /// ikke er byttet inn.
+            let poeng_hos_oss: Int?
+            let minutter: Int?
+            let bonus: Int?
+            let bonus_forelopig: Bool?
+            let status: String?
+            let forventet_xp: Double?
+            let avvik: Double?
+            let kamp_ferdig: Bool?
+            /// Foreløpig autobytte — regnet bare for spillere hvis kamp er ferdig med
+            /// 0 minutter. Før det kan han fortsatt komme inn.
+            let autobytte_forelopig: Bool?
+        }
+    }
+
     /// Kvitteringen for utførelse.
     ///
     /// Uten den vet ikke appen om noe skjedde, og da tør ingen trykke på knappen.
@@ -208,6 +266,7 @@ struct FplStatus: Decodable {
         anbefaling                = try? c.decodeIfPresent(Anbefaling.self, forKey: .anbefaling)
         kampforventning           = try? c.decodeIfPresent([String: Kampforventning].self, forKey: .kampforventning)
         utforelse                 = try? c.decodeIfPresent(Utforelse.self, forKey: .utforelse)
+        live                      = try? c.decodeIfPresent(Live.self, forKey: .live)
 
         // Streng før 5. september, objekt etter. Fra objektet er `plan` setningen som
         // faktisk sier noe; resten er tall appen viser andre steder.
@@ -226,7 +285,7 @@ struct FplStatus: Decodable {
         case versjon, generert, sesong, lag, runde, tropp, sjekker, kilder
         case odds_kvote_igjen, modell_status, aapne_sporsmal, aapne_risikoer
         case modell_status_sammendrag, sporsmal_oversikt, endret, endret_historikk
-        case ordliste, bytte_status, anbefaling, kampforventning, utforelse
+        case ordliste, bytte_status, anbefaling, kampforventning, utforelse, live
     }
 
     /// Den ventende beslutningen som struktur.

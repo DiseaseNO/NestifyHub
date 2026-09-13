@@ -157,18 +157,15 @@ struct FplNaa: View {
         // Mangler flagget, viser vi nedtellingen som før.
         let paagaarNaa = s.data.runde.paagaar_naa == true
         VStack(alignment: .leading, spacing: 4) {
-            Text("Runde \(s.data.runde.nummer)")
+            // Mens runden ruller er DEN runden overskriften, ikke planleggingsrunden —
+            // ellers står «Runde 5» over et live-tall som gjelder runde 4.
+            Text("Runde \(paagaarNaa ? (s.data.runde.paagaaende ?? s.data.runde.nummer) : s.data.runde.nummer)")
                 .font(.footnote).foregroundStyle(Farge.dempet)
 
             if paagaarNaa {
                 // En runde SPILLES nå. Da er nedtelling til neste frist feil fokus — det
-                // Thomas vil vite er hvordan laget gjør det akkurat nå. Live-poengene
-                // henger på kilden; til de kommer viser vi i det minste at runden ruller
-                // i stedet for et stort «X til/siden frist» som ikke er poenget nå.
-                Label("Runde \(s.data.runde.paagaaende ?? s.data.runde.nummer) pågår",
-                      systemImage: "sportscourt.fill")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(Diagramfarge.varsel)
+                // Thomas vil vite er hvordan laget gjør det akkurat nå.
+                livehode(s)
                 if let sn = s.data.runde.snitt_liga, sn > 0 {
                     Text("Ligasnitt \(sn)").font(.subheadline).foregroundStyle(Farge.dempet)
                 }
@@ -190,6 +187,67 @@ struct FplNaa: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: livehode
+
+    /// Lagets live-stilling: det store poengtallet man åpner appen for midt i en runde,
+    /// med avvik mot forventning ved siden av og en linje om hvor mange som har spilt.
+    ///
+    /// Faller tilbake på et rent «pågår»-merke om kilden ikke har sendt `live` ennå —
+    /// flagget kan stå før tallene er regnet.
+    @ViewBuilder
+    private func livehode(_ s: FplSvar) -> some View {
+        if let lv = s.data.live, let p = lv.poeng {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                // ≥48 pt: dette er tallet man åpner appen for — nå live-poeng, ikke frist.
+                Text("\(p)")
+                    .font(.system(size: 52, weight: .light).monospacedDigit())
+                    .foregroundStyle(Farge.tekst)
+                    .contentTransition(.numericText())
+                if let av = lv.avvik {
+                    // Grønt over forventning, rødt under — samme språk som avvikssøylene.
+                    Text(String(format: "%+.1f", av))
+                        .font(.title3.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(av >= 0 ? Diagramfarge.god : Farge.avvik)
+                }
+            }
+            Text("poeng i runden" + (lv.forventet.map { String(format: " · forventet %.1f", $0) } ?? ""))
+                .font(.subheadline).foregroundStyle(Farge.dempet)
+            if let linje = fremdriftstekst(lv) {
+                Text(linje).font(.caption).foregroundStyle(Farge.svak)
+            }
+            // Kapteinen teller dobbelt — spiller han ikke, er halve satsingen tapt. Men
+            // «spilte_ikke» er det eneste som er en alarm: false alene betyr også at
+            // kampen ikke har startet (kilden skiller dem med kaptein_status).
+            if lv.kaptein_status == "spilte_ikke" {
+                Label("Kaptein \(lv.kaptein ?? "") spilte ikke", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.medium)).foregroundStyle(Farge.avvik)
+            } else if lv.kaptein_byttet_til_vise == true {
+                Label("Kaptein byttet til visekaptein", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.caption).foregroundStyle(Diagramfarge.varsel)
+            }
+            // Foreløpig bonus fra BPS: tallet kan ligge over FPLs eget til kampene er
+            // ferdigbehandlet. Si det, så et høyere tall ikke leses som en feil.
+            if let b = lv.bonus_forelopig_sum, b > 0 {
+                Text("inkl. \(b) foreløpig bonus").font(.caption2).foregroundStyle(Farge.svak)
+            }
+        } else {
+            Label("Runde \(s.data.runde.paagaaende ?? s.data.runde.nummer) pågår",
+                  systemImage: "sportscourt.fill")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(Diagramfarge.varsel)
+        }
+    }
+
+    /// «6 spiller · 5 igjen» — bare de tallene som ikke er null, i den rekkefølgen som
+    /// leses naturlig mens en kampdag ruller.
+    private func fremdriftstekst(_ lv: FplStatus.Live) -> String? {
+        var deler: [String] = []
+        if let n = lv.spillere_i_spill, n > 0 { deler.append("\(n) spiller") }
+        if let n = lv.spillere_igjen, n > 0 { deler.append("\(n) igjen") }
+        if let n = lv.spillere_ferdig, n > 0 { deler.append("\(n) ferdig") }
+        return deler.isEmpty ? nil : deler.joined(separator: " · ")
     }
 
     /// Under tre timer bytter vi til minutter — da er timer for grov oppløsning til å
@@ -399,7 +457,18 @@ struct FplNaa: View {
     /// Bredden måles med en `GeometryReader` framfor `containerRelativeFrame`: den siste
     /// hang i layout, og hele Nå-skjermen ble stående på spinneren fordi hovedtråden
     /// aldri kom videre. Symptomet så ut som en datafeil, og var det ikke.
+    @ViewBuilder
     private func tropp(_ d: FplStatus) -> some View {
+        // Midt i en runde tegner vi rundens EGNE picks (`live.spillere`), ikke `tropp`
+        // som er laget for neste frist — se advarselen på `FplStatus.live`.
+        if d.runde.paagaar_naa == true, let sp = d.live?.spillere, !sp.isEmpty {
+            livetropp(d, sp)
+        } else {
+            vanligtropp(d)
+        }
+    }
+
+    private func vanligtropp(_ d: FplStatus) -> some View {
         let xi = d.tropp.filter(\.i_xi).sorted { $0.plass < $1.plass }
         let benk = d.tropp.filter { !$0.i_xi }.sorted { $0.plass < $1.plass }
         let rader = ["GK", "DEF", "MID", "FWD"].map { pos in xi.filter { $0.posisjon == pos } }
@@ -501,6 +570,113 @@ struct FplNaa: View {
         case ...2: Diagramfarge.god
         case 3:    Farge.dempet
         default:   Diagramfarge.alvorlig
+        }
+    }
+
+    // MARK: live-tropp
+
+    /// Troppen mens runden spilles: rundens egne picks fra `live.spillere`, med live-poeng
+    /// og avvik per spiller. Posisjon, drakt og kamp finnes ikke i `live.spillere`, så vi
+    /// beriker fra `tropp` på `id`. En spiller som er byttet ut for neste frist er fortsatt
+    /// i den rullende runden, men mangler da i `tropp` — han tegnes uten drakt og havner i
+    /// en egen rad, aldri droppet.
+    private func livetropp(_ d: FplStatus, _ spillere: [FplStatus.Live.Spiller]) -> some View {
+        let etterId = Dictionary(d.tropp.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        func pos(_ s: FplStatus.Live.Spiller) -> String { etterId[s.id]?.posisjon ?? "?" }
+        let xi = spillere.filter(\.i_xi).sorted { $0.plass < $1.plass }
+        let benk = spillere.filter { !$0.i_xi }.sorted { $0.plass < $1.plass }
+        let rader = ["GK", "DEF", "MID", "FWD", "?"].map { p in xi.filter { pos($0) == p } }
+            .filter { !$0.isEmpty }
+        let spor = max(rader.map(\.count).max() ?? 1, benk.count, 1)
+
+        return VStack(alignment: .leading, spacing: 14) {
+            Text("STARTELLEVER — LIVE").font(.caption2.weight(.semibold)).foregroundStyle(Farge.dempet)
+                .id("tropp")
+            ForEach(Array(rader.enumerated()), id: \.offset) { _, rad in
+                liveformasjonsrad(rad, spor: spor, etterId: etterId)
+            }
+            Text("BENK").font(.caption2.weight(.semibold))
+                .foregroundStyle(Farge.dempet).padding(.top, 6)
+            liveformasjonsrad(benk, spor: spor, etterId: etterId)
+        }
+        .frame(maxWidth: .infinity)
+        .background(
+            GeometryReader { g in
+                Color.clear.preference(key: Radbredde.self, value: g.size.width)
+            }
+        )
+        .onPreferenceChange(Radbredde.self) { radbredde = $0 }
+    }
+
+    private func liveformasjonsrad(_ rad: [FplStatus.Live.Spiller], spor: Int,
+                                   etterId: [Int: FplStatus.Spiller]) -> some View {
+        HStack(spacing: 6) {
+            Spacer(minLength: 0)
+            ForEach(rad) { s in
+                livespillerkort(s, beriket: etterId[s.id])
+                    .frame(width: kortbredde(spor))
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// Ett live-kort. Poenget står stort; `poeng_hos_oss` (kaptein × 2, benk = 0) er det
+    /// laget faktisk får, mens `poeng` er spillerens rene kamppoeng — for kapteinen viser
+    /// vi doblingen med et «×2»-merke i stedet for to ulike tall.
+    private func livespillerkort(_ s: FplStatus.Live.Spiller, beriket: FplStatus.Spiller?) -> some View {
+        let påBenk = !s.i_xi
+        return VStack(spacing: 2) {
+            Draktbilde(bilder: beriket?.bilder, størrelse: 44)
+                .opacity(påBenk ? 0.55 : 1)   // benken dempes: den gir ikke poeng med mindre den byttes inn
+            HStack(spacing: 2) {
+                if s.kaptein { Image(systemName: "c.circle.fill").font(.system(size: 9)).foregroundStyle(Diagramfarge.serie1) }
+                if s.vise { Image(systemName: "v.circle").font(.system(size: 9)).foregroundStyle(Farge.dempet) }
+                Text(s.navn).font(.system(size: 11, weight: .medium)).lineLimit(1)
+            }
+            .foregroundStyle(Farge.tekst)
+            // Klubbnavn kommer fra berikelsen; live.spillere har bare klubbkoden.
+            if let k = beriket?.klubb {
+                Text(k).font(.system(size: 9)).foregroundStyle(Farge.svak)
+            }
+            // Status/minutter: en grønn prikk mens han spiller, minutter ellers.
+            livestatuslinje(s)
+            // Live-poenget — det kortet handler om.
+            HStack(spacing: 3) {
+                Text("\(s.poeng ?? 0)")
+                    .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(påBenk ? Farge.dempet : Farge.tekst)
+                if s.kaptein { Text("×2").font(.system(size: 9, weight: .semibold)).foregroundStyle(Diagramfarge.serie1) }
+                if let av = s.avvik {
+                    Text(String(format: "%+.1f", av))
+                        .font(.system(size: 9).monospacedDigit())
+                        .foregroundStyle(av >= 0 ? Diagramfarge.god : Farge.avvik)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 130, maxHeight: 130, alignment: .top)
+        .padding(.vertical, 6)
+        .background(Farge.kort)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .contentShape(RoundedRectangle(cornerRadius: 10))
+        // Detaljvisningen krever den fulle Spiller-en; finnes den ikke (bortbyttet), er
+        // kortet ikke trykkbart.
+        .onTapGesture { if let b = beriket { visSpiller = b } }
+    }
+
+    @ViewBuilder
+    private func livestatuslinje(_ s: FplStatus.Live.Spiller) -> some View {
+        switch s.status {
+        case "spiller":
+            HStack(spacing: 3) {
+                Circle().fill(Diagramfarge.god).frame(width: 5, height: 5)
+                Text("\(s.minutter ?? 0)′").font(.system(size: 9).monospacedDigit()).foregroundStyle(Diagramfarge.god)
+            }
+        case "ferdig":
+            Text("\(s.minutter ?? 0)′ ferdig").font(.system(size: 9).monospacedDigit()).foregroundStyle(Farge.svak)
+        case "spilte_ikke":
+            Text("spilte ikke").font(.system(size: 9)).foregroundStyle(Farge.avvik)
+        default:   // ikke_startet
+            Text("ikke startet").font(.system(size: 9)).foregroundStyle(Farge.dempet)
         }
     }
 
