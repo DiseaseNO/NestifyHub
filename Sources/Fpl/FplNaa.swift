@@ -157,13 +157,21 @@ struct FplNaa: View {
             Text("Runde \(s.data.runde.nummer)")
                 .font(.footnote).foregroundStyle(Farge.dempet)
 
-            if laast && paagaar {
-                // Laget kan ikke endres nå. Ingen nedtelling, ingen handlinger.
-                Label("Runden pågår — laget er låst", systemImage: "lock.fill")
-                    .font(.title3.weight(.medium))
+            if paagaar {
+                // En runde SPILLES nå. Da er nedtelling til neste frist feil fokus — det
+                // Thomas vil vite er hvordan laget gjør det akkurat nå. «X siden frist»
+                // midt i en runde er bare støy.
+                Label("Runde \(s.data.runde.paagaaende ?? 0) pågår", systemImage: "sportscourt.fill")
+                    .font(.title2.weight(.semibold))
                     .foregroundStyle(Diagramfarge.varsel)
                 if let sn = s.data.runde.snitt_liga, sn > 0 {
                     Text("Ligasnitt \(sn)").font(.subheadline).foregroundStyle(Farge.dempet)
+                }
+                // Neste frist som en diskret linje, ikke det store tallet — den er
+                // planlegging, ikke det som skjer nå.
+                if !laast, let t = lager.sekunderTilFrist, t > 0 {
+                    Text("Runde \(s.data.runde.nummer): \(nedtellingstekst(t)) til frist")
+                        .font(.caption).foregroundStyle(Farge.svak).padding(.top, 2)
                 }
             } else if let t = lager.sekunderTilFrist {
                 let haster = t > 0 && t < 3 * 3600
