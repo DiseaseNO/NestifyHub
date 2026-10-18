@@ -81,7 +81,10 @@ struct TreningModul: View {
         case .vekt:        VektSkjerm(vekt: d?.vekt, reisen: d?.reisen)
         case .restitusjon: RestitusjonSkjerm(form: d?.form)
         case .reisen:      Reiseskjerm(reisen: d?.reisen ?? .tom, vekt: d?.vekt)
-        case .okt(let id): ØktSkjerm(økt: d?.okter?.first { $0.id == id })
+        case .okt(let id):
+            // Tom id betyr «nyeste styrkeøkt» og brukes bare av CI.
+            ØktSkjerm(økt: id.isEmpty ? d?.okter?.first { $0.erStyrke }
+                                      : d?.okter?.first { $0.id == id })
         }
     }
 }

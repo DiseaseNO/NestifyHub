@@ -162,11 +162,70 @@ struct Treningsdata: Decodable {
         case iDag = "i_dag"
     }
 
+    /// Hver seksjon dekodes **for seg**.
+    ///
+    /// Standard syntetisert dekoding er alt-eller-ingenting: én feil type i ett felt
+    /// kaster, og hele datasettet er borte. Det skjedde 18.10.2026 — `i_dag.readiness`
+    /// gikk fra tall til tekst, og appen sluttet å vise noe som helst nytt. Ikke bare
+    /// `i_dag`: alt. Thomas trodde økta hans ikke var kommet fram; den lå i svaret
+    /// hele tiden.
+    ///
+    /// Kilden er et levende skjema som utvides flere ganger om dagen. Da er det feil
+    /// at ett ukjent felt kan blanke skjermen. Et `try?` per seksjon betyr at en
+    /// endring koster det ene kortet den gjelder — resten står.
+    ///
+    /// Prisen er at en feil blir **stille**. Den er verdt å betale her: dette er en
+    /// ren visning, og et kort som mangler er allerede et språk modulen snakker.
+    init(from dekoder: Decoder) throws {
+        let c = try dekoder.container(keyedBy: CodingKeys.self)
+        func les<T: Decodable>(_ t: T.Type, _ k: CodingKeys) -> T? {
+            (try? c.decodeIfPresent(t, forKey: k)) ?? nil
+        }
+        generert = les(String.self, .generert)
+        uke      = les(Uke.self, .uke)
+        rekorder = les([Rekord].self, .rekorder)
+        midje    = les(Midje.self, .midje)
+        vekt     = les(Vekt.self, .vekt)
+        protein  = les(Protein.self, .protein)
+        reisen   = les(Reisen.self, .reisen)
+        kontekst = les(Kontekst.self, .kontekst)
+        iDag     = les(IDag.self, .iDag)
+        rad      = les([Rad].self, .rad)
+        fremgang = les([Fremgang].self, .fremgang)
+        form     = les(Form.self, .form)
+        lop      = les(Lop.self, .lop)
+        styrke   = les(Styrke.self, .styrke)
+        okter    = les([Okt].self, .okter)
+        energi   = les(Energi.self, .energi)
+    }
+
     struct IDag: Decodable {
         let dato: String?
         /// Hovedbudskapet øverst på skjermen. Vises ordrett.
         let forslag: String?
-        let readiness: Double?
+        /// **Ferdig tekst, ikke et tall.**
+        ///
+        /// Feltet var et tall og ble et nivånavn («Lav») 18.10.2026 uten at noen
+        /// sa fra. Modellen krevde `Double`, dekodingen kastet — og fordi ÉN feil
+        /// type velter hele `Treningsdata`, forsvant alt annet også: Thomas' økt
+        /// fra samme kveld dukket aldri opp i appen. Derfor tar den imot begge,
+        /// og derfor dekodes hver seksjon for seg (se `init(from:)`).
+        let readiness: String?
+
+        enum CodingKeys: String, CodingKey { case dato, forslag, readiness }
+
+        init(from dekoder: Decoder) throws {
+            let c = try dekoder.container(keyedBy: CodingKeys.self)
+            dato = try? c.decodeIfPresent(String.self, forKey: .dato)
+            forslag = try? c.decodeIfPresent(String.self, forKey: .forslag)
+            if let t = try? c.decodeIfPresent(String.self, forKey: .readiness) {
+                readiness = t
+            } else if let n = try? c.decodeIfPresent(Double.self, forKey: .readiness) {
+                readiness = Trening.tall(n, desimaler: 0)
+            } else {
+                readiness = nil
+            }
+        }
     }
 
     struct Rad: Decodable, Identifiable {
@@ -328,13 +387,69 @@ struct Treningsdata: Decodable {
         let aerobTe: Double?
         let anaerobTe: Double?
         let treningslast: Double?
+        /// Settene i en styrkeøkt, i rekkefølge. Hvileperioder er ikke med.
+        let sett: [Sett]?
+        /// Sammendrag per øvelse, i samme rekkefølge som de ble gjort.
+        let ovelser: [Ovelse]?
 
         enum CodingKeys: String, CodingKey {
             case id, dato, start, type, navn, km, tempo, snittpuls, makspuls, kcal, hoydemeter, treningslast
+            case sett, ovelser
             case typeTekst = "type_tekst"
             case varighetMin = "varighet_min"
             case aerobTe = "aerob_te"
             case anaerobTe = "anaerob_te"
+        }
+
+        /// Ett sett.
+        ///
+        /// `kg` og `reps` mangler ofte: klokka registrerer settet, men Thomas
+        /// bekrefter ikke alltid vekta og antallet. Et sett uten tall er fortsatt
+        /// et sett han gjorde — det skal vises, ikke skjules.
+        struct Sett: Decodable, Identifiable {
+            let nr: Int?
+            let ovelse: String?
+            let kategori: String?
+            let kg: Double?
+            let reps: Int?
+            let varighetS: Double?
+
+            enum CodingKeys: String, CodingKey {
+                case nr, ovelse, kategori, kg, reps
+                case varighetS = "varighet_s"
+            }
+            var id: Int { nr ?? 0 }
+        }
+
+        struct Ovelse: Decodable, Identifiable {
+            let ovelse: String?
+            let sett: Int?
+            let kgMaks: Double?
+            let repsTotalt: Int?
+
+            enum CodingKeys: String, CodingKey {
+                case ovelse, sett
+                case kgMaks = "kg_maks"
+                case repsTotalt = "reps_totalt"
+            }
+            var id: String { ovelse ?? "" }
+        }
+
+        /// Settene gruppert slik de ble gjort, med sammendraget koblet på.
+        ///
+        /// Grupperingen følger `ovelser[]`-rekkefølgen når den finnes — den er
+        /// kildens egen, og den er riktigere enn å sortere selv.
+        var grupper: [(ovelse: Ovelse, sett: [Sett])] {
+            let alle = sett ?? []
+            let navn = ovelser?.map { $0.ovelse } ?? []
+            let rekkefølge = navn.isEmpty
+                ? alle.reduce(into: [String?]()) { if !$0.contains($1.ovelse) { $0.append($1.ovelse) } }
+                : navn
+            return rekkefølge.map { n in
+                let o = ovelser?.first { $0.ovelse == n }
+                    ?? Ovelse(ovelse: n, sett: nil, kgMaks: nil, repsTotalt: nil)
+                return (o, alle.filter { $0.ovelse == n })
+            }
         }
 
         var erStyrke: Bool { type?.contains("strength") == true || typeTekst?.lowercased().contains("styrke") == true }

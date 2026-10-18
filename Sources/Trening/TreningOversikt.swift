@@ -157,8 +157,10 @@ private struct IDagBanner: View {
                 HStack {
                     Seksjonstittel(tekst: "I dag")
                     Spacer()
-                    if let r = iDag.readiness, let v = Trening.tall(r, desimaler: 0) {
-                        Text("Readiness \(v)")
+                    // Ferdig tekst fra kilden — «Lav», «Middels», «Topp». Var et tall
+                    // fram til 18.10.2026; modellen tar imot begge og gir en streng.
+                    if let r = iDag.readiness, !r.isEmpty {
+                        Text("Readiness \(r)")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(Farge.dempet)
                             .padding(.horizontal, 7).padding(.vertical, 3)

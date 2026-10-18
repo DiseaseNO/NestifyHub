@@ -96,6 +96,15 @@ private struct Øktrad: View {
         if let km = økt.km, km > 0, let v = Trening.tall(km) { d.append("\(v) km") }
         if let m = økt.varighetMin, let v = Trening.tall(m, desimaler: 0) { d.append("\(v) min") }
         if let t = økt.tempo, økt.km ?? 0 > 0 { d.append(t) }
+        // En styrkeøkt er ikke beskrevet av varigheten alene. «4 øvelser · 11 sett»
+        // sier hva som faktisk ble gjort — og det er det eneste som skiller to økter
+        // på 36 minutter fra hverandre.
+        if let n = økt.ovelser?.count, n > 0 {
+            d.append(n == 1 ? "1 øvelse" : "\(n) øvelser")
+        }
+        if let n = økt.sett?.count, n > 0 {
+            d.append(n == 1 ? "1 sett" : "\(n) sett")
+        }
         return d.joined(separator: "  ·  ")
     }
 }
@@ -526,6 +535,67 @@ struct VektSkjerm: View {
 struct ØktSkjerm: View {
     let økt: Treningsdata.Okt?
 
+    /// Øvelsene i rekkefølge, med settene under hver.
+    ///
+    /// **Et sett uten tall er fortsatt et sett han gjorde.** Klokka registrerer
+    /// settet, men Thomas bekrefter ikke alltid vekt og antall. Da står raden med
+    /// nummeret sitt og ingenting mer — den skjules ikke, for da ville økta sett
+    /// kortere ut enn den var.
+    @ViewBuilder private func øvelser(_ ø: Treningsdata.Okt) -> some View {
+        Treningsbolk(tittel: "Øvelser") {
+            ForEach(Array(ø.grupper.enumerated()), id: \.offset) { _, g in
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(g.ovelse.ovelse ?? "Øvelse")
+                        .font(.system(size: 14, weight: .medium)).foregroundStyle(Farge.tekst)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let s = sammendrag(g.ovelse, g.sett.count) {
+                        Text(s).font(.system(size: 11)).foregroundStyle(Farge.dempet)
+                    }
+                    ForEach(g.sett) { st in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text("\(st.nr ?? 0).")
+                                .font(.system(size: 12).monospacedDigit())
+                                .foregroundStyle(Farge.dempet).frame(width: 22, alignment: .trailing)
+                            Text(settekst(st))
+                                .font(.system(size: 13)).foregroundStyle(Farge.tekst)
+                            Spacer(minLength: 6)
+                            if let v = st.varighetS, v > 0 {
+                                Text(varighet(v)).font(.system(size: 11).monospacedDigit())
+                                    .foregroundStyle(Farge.dempet)
+                            }
+                        }
+                    }
+                }
+                .padding(.bottom, 2)
+            }
+        }
+    }
+
+    private func sammendrag(_ o: Treningsdata.Okt.Ovelse, _ antall: Int) -> String? {
+        var d: [String] = []
+        let n = o.sett ?? antall
+        if n > 0 { d.append(n == 1 ? "1 sett" : "\(n) sett") }
+        if let k = o.kgMaks, let v = Trening.tall(k) { d.append("\(v) kg") }
+        if let r = o.repsTotalt, r > 0 { d.append("\(r) rep totalt") }
+        return d.isEmpty ? nil : d.joined(separator: "  ·  ")
+    }
+
+    /// «24 kg × 10», «24 kg» når antallet mangler, «–» når begge gjør det.
+    private func settekst(_ st: Treningsdata.Okt.Sett) -> String {
+        let kg = st.kg.flatMap { Trening.tall($0) }.map { "\($0) kg" }
+        switch (kg, st.reps) {
+        case let (k?, r?): return "\(k) × \(r)"
+        case let (k?, nil): return k
+        case let (nil, r?): return "\(r) rep"
+        default: return "–"
+        }
+    }
+
+    private func varighet(_ s: Double) -> String {
+        let sek = Int(s.rounded())
+        return sek >= 60 ? "\(sek / 60):\(String(format: "%02d", sek % 60))" : "\(sek) s"
+    }
+
     var body: some View {
         Detalj(tittel: økt?.typeTekst ?? "Økt") {
             if let ø = økt {
@@ -552,6 +622,7 @@ struct ØktSkjerm: View {
                         if let h = ø.hoydemeter, h > 0 { Rad(venstre: "Høydemeter", høyre: (Trening.tall(h, desimaler: 0) ?? "–") + " m") }
                     }
                 }
+                if !ø.grupper.isEmpty { øvelser(ø) }
                 if ø.aerobTe != nil || ø.anaerobTe != nil || ø.treningslast != nil {
                     Treningsbolk(tittel: "Effekt") {
                         if let a = ø.aerobTe, a > 0 {

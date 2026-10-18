@@ -136,6 +136,9 @@ enum Testskjerm {
         case "vekt":        .vekt
         case "restitusjon": .restitusjon
         case "reisen":      .reisen
+        // Tom id = «nyeste styrkeøkt». Settene finnes bare der, og uten et flagg
+        // ville den skjermen aldri blitt knipset.
+        case "okt":         .okt("")
         default:            nil
         }
     }

@@ -267,7 +267,7 @@ jobs:
             knips 10-trening -server localhost:8443 -token ci -skjerm trening
             # Detaljskjermene ligger bak trykk. Uten egne flagg ville mesteparten
             # av modulen gått ut til bruker uten at noen hadde sett den rendret.
-            for m in uke form lop styrke energi restitusjon vekt reisen; do
+            for m in uke form lop styrke energi restitusjon vekt reisen okt; do
               knips "10-trening-$m" -server localhost:8443 -token ci -skjerm trening -trening "$m"
             done
             # Oversikten er lengre enn skjermen, og simulatoren knipser bare det
