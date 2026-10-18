@@ -374,7 +374,7 @@ private struct Vektkort: View {
                 if let dager = vekt.dagerISonen {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("\(dager)")
-                            .font(.system(size: 34, weight: .light))
+                            .font(.system(size: 28, weight: .light))
                             .foregroundStyle(Farge.ok)
                         Text(dager == 1 ? "dag i sonen" : "dager i sonen")
                             .font(.system(size: 13)).foregroundStyle(Farge.dempet)
@@ -404,11 +404,18 @@ private struct Vektkort: View {
         let til = vekt.sone?.til
         return Chart {
             if let fra, let til {
-                RectangleMark(
-                    yStart: .value("Fra", fra),
-                    yEnd: .value("Til", til)
-                )
-                .foregroundStyle(Farge.ok.opacity(0.14))
+                // Dempet felt, ikke en blokk. Sonen er BAKGRUNN — målepunktene er
+                // dataene. Første utgave hadde 0,14 og ble en stor mettet flate som
+                // tok over kortet; prikkene forsvant i den.
+                RectangleMark(yStart: .value("Fra", fra), yEnd: .value("Til", til))
+                    .foregroundStyle(Farge.ok.opacity(0.06))
+                // Tynne grenselinjer gjør sonen lesbar som et INTERVALL uten at
+                // flaten må bære det alene.
+                ForEach([fra, til], id: \.self) { kant in
+                    RuleMark(y: .value("Sonekant", kant))
+                        .lineStyle(StrokeStyle(lineWidth: 1))
+                        .foregroundStyle(Farge.ok.opacity(0.35))
+                }
             }
             ForEach(punkter) { p in
                 if let d = Trening.dato(p.dato), let v = p.verdi {
@@ -416,6 +423,11 @@ private struct Vektkort: View {
                         .symbolSize(55)
                         // Utenfor sonen = nøytral grå. Ikke en advarsel.
                         .foregroundStyle(iSonen(v) ? Farge.ok : Farge.dempet)
+                        // Ring i kortets egen farge, så punktene løsner fra båndet
+                        // og fra hverandre der de ligger tett.
+                        .symbol { Circle().stroke(Farge.kort, lineWidth: 2)
+                            .background(Circle().fill(iSonen(v) ? Farge.ok : Farge.dempet))
+                            .frame(width: 9, height: 9) }
                 }
             }
         }

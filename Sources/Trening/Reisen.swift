@@ -52,8 +52,11 @@ struct Reiseskjerm: View {
         Flate {
             Chart {
                 if let f = vekt?.sone?.fra, let t = vekt?.sone?.til {
+                    // Samme dempede sone som på hovedskjermen. Her er den enda
+                    // viktigere å holde nede: kurven er poenget, sonen er målet
+                    // den endte i.
                     RectangleMark(yStart: .value("Fra", f), yEnd: .value("Til", t))
-                        .foregroundStyle(Farge.ok.opacity(0.12))
+                        .foregroundStyle(Farge.ok.opacity(0.06))
                 }
                 ForEach(punkter) { p in
                     if let d = Trening.dato(p.dato), let v = p.verdi {
