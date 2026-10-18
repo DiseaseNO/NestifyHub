@@ -215,17 +215,32 @@ enum Trening {
         return f.string(from: d)
     }
 
+    /// Er dette en ren kalenderdato («2026-10-12») framfor et tidspunkt?
+    ///
+    /// Kilden sender begge deler. `generert` og `sist_okt` har tidssone og er
+    /// øyeblikk; `start`, `slutt` og alle datoene på kurvepunktene er kalenderdager
+    /// uten klokkeslett. De to må behandles ulikt.
+    static func erKalenderdato(_ s: String) -> Bool {
+        s.count == 10 && !s.contains("T")
+    }
+
     static func dato(_ iso: String?) -> Date? {
         guard let iso else { return nil }
+        if erKalenderdato(iso) {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.dateFormat = "yyyy-MM-dd HH:mm"
+            // **Forankres kl. 12, ikke midnatt.** En kalenderdag er ikke et øyeblikk,
+            // og midnatt ligger på kanten av døgnet: en tidssoneendring, en
+            // sommertidsovergang eller en graf som regner i en annen sone kan da
+            // skyve datoen én dag. Fra midt på dagen har ingen av delene nok å gå på.
+            return f.date(from: iso + " 12:00")
+        }
         let m = ISO8601DateFormatter()
         m.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let d = m.date(from: iso) { return d }
         m.formatOptions = [.withInternetDateTime]
-        if let d = m.date(from: iso) { return d }
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f.date(from: iso)
+        return m.date(from: iso)
     }
 
     /// «16. okt» — kort dato til merkelapper.
