@@ -83,35 +83,70 @@ final class TreningLager {
     /// Åpner hendelsesstrømmen og blir stående i den. Returnerer hvor mange
     /// sekunder den varte, så kalleren kan skille «falt med én gang» fra
     /// «gikk fint en stund og ble så brutt».
+    ///
+    /// **To måter en strøm dør på, og bare den ene sier fra.** Blir forbindelsen
+    /// revet, kaster lesingen og vi kobler opp igjen. Men den kan også bli stående
+    /// åpen og stum — da venter lesingen i det uendelige, og skjermen viser gamle
+    /// tall som om de var ferske. Det er den verste utgaven, fordi ingenting ser galt ut.
+    ///
+    /// Serveren sender hjerteslag hvert 15. sekund (målt, også gjennom mellomleddene).
+    /// Kommer det ingenting på 45, har vi mistet tre på rad, og da river vi selv og
+    /// faller tilbake på å spørre.
     private func strøm() async -> TimeInterval {
         let start = Date()
         guard let rq = api.strømForespørsel("/api/trening/stream") else { return 0 }
+        let liv = Livstegn()
+
+        await withTaskGroup(of: Void.self) { gruppe in
+            gruppe.addTask { await self.les(rq, liv) }
+            gruppe.addTask {
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(5))
+                    if Task.isCancelled { return }
+                    if await liv.stille > 45 { return }   // tre tapte hjerteslag
+                }
+            }
+            // Den første som blir ferdig avgjør: enten døde lesingen, eller så
+            // slo vakthunden til. Uansett skal begge avsluttes.
+            await gruppe.next()
+            gruppe.cancelAll()
+        }
+        return Date().timeIntervalSince(start)
+    }
+
+    private func les(_ rq: URLRequest, _ liv: Livstegn) async {
         do {
             let (linjer, respons) = try await URLSession.shared.bytes(for: rq)
-            guard let h = respons as? HTTPURLResponse, h.statusCode == 200 else { return 0 }
+            guard let h = respons as? HTTPURLResponse, h.statusCode == 200 else { return }
             var kropp = ""
             for try await linje in linjer.lines {
-                if Task.isCancelled { break }
+                if Task.isCancelled { return }
+                await liv.rør()                          // også hjerteslag teller som liv
                 if linje.isEmpty {                       // tom linje = hendelsen er slutt
-                    if !kropp.isEmpty, let d = kropp.data(using: .utf8) {
-                        if let nytt = try? JSONDecoder().decode(Treningssvar.self, from: d) {
-                            await MainActor.run { self.svar = nytt; self.feil = nil }
-                        }
-                        kropp = ""
+                    if !kropp.isEmpty, let d = kropp.data(using: .utf8),
+                       let nytt = try? JSONDecoder().decode(Treningssvar.self, from: d) {
+                        await MainActor.run { self.svar = nytt; self.feil = nil }
                     }
+                    kropp = ""
                     continue
                 }
-                // «: hjerteslag» er bare liv, ikke data.
-                if linje.hasPrefix(":") { continue }
+                if linje.hasPrefix(":") { continue }     // «: hjerteslag» er bare liv
                 if linje.hasPrefix("data:") {
                     kropp += linje.dropFirst(5).trimmingCharacters(in: .whitespaces)
                 }
             }
         } catch {
             // Avbrutt fordi skjermen forsvant er ikke en feil.
-            if erAvbrutt(error) { return Date().timeIntervalSince(start) }
         }
-        return Date().timeIntervalSince(start)
     }
+}
 
+/// Når vi sist hørte noe som helst fra strømmen.
+///
+/// Egen `actor` fordi lesingen og vakthunden er to samtidige oppgaver som rører
+/// det samme tidspunktet.
+private actor Livstegn {
+    private var sist = Date()
+    func rør() { sist = Date() }
+    var stille: TimeInterval { Date().timeIntervalSince(sist) }
 }
