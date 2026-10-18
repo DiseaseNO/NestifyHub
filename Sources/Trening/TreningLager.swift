@@ -52,8 +52,28 @@ final class TreningLager {
             if erAvbrutt(error) { return }
             // Har vi data fra før, beholder vi dem. Et nettverksglimt skal ikke tømme
             // skjermen for tall som fortsatt er gyldige.
-            if svar == nil { feil = error.localizedDescription }
+            if svar == nil { feil = beskriv(error) }
         }
+    }
+
+    /// Skiller «kom ikke fram» fra «kom fram, men kunne ikke leses».
+    ///
+    /// 18.10.2026 endret kilden typen på ett felt, dekodingen kastet, og feilen kom
+    /// ut som en ugjennomtrengelig systemtekst. Den leses som et nettverksproblem —
+    /// og da leter man på feil sted. Svaret var framme hele tiden.
+    private func beskriv(_ error: Error) -> String {
+        guard let d = error as? DecodingError else { return error.localizedDescription }
+        let hvor: String
+        switch d {
+        case .typeMismatch(_, let k), .valueNotFound(_, let k),
+             .keyNotFound(_, let k), .dataCorrupted(let k):
+            hvor = k.codingPath.map(\.stringValue).joined(separator: ".")
+        @unknown default:
+            hvor = ""
+        }
+        return hvor.isEmpty
+            ? "Svaret fra serveren kunne ikke leses."
+            : "Svaret fra serveren kunne ikke leses (\(hvor))."
     }
 
     /// Holder dataene ferske mens skjermen er fremme.
