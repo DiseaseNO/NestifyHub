@@ -29,30 +29,45 @@ struct Energikort: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .semibold)).foregroundStyle(Farge.dempet)
                 }
-                HStack(alignment: .top, spacing: 0) {
-                    if let s = energi.ut?.iDagSaLangt, let t = s.total {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(Energi.kcal(t) ?? "–")
-                                .font(.system(size: 24, weight: .light)).foregroundStyle(Farge.tekst)
-                            Text(klokkeslett(s.hentet))
-                                .font(.system(size: 10)).foregroundStyle(Farge.dempet)
+                HStack(alignment: .bottom, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 9) {
+                        HStack(alignment: .top, spacing: 20) {
+                            if let s = energi.ut?.iDagSaLangt, let t = s.total {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(Energi.kcal(t) ?? "–")
+                                        .font(.system(size: 24, weight: .light))
+                                        .foregroundStyle(Farge.tekst)
+                                    Text(klokkeslett(s.hentet))
+                                        .font(.system(size: 10)).foregroundStyle(Farge.dempet)
+                                }
+                            }
+                            // Mat vises BARE når den finnes, og som et tall ved siden
+                            // av — aldri under, og aldri med et minustegn mellom. Et
+                            // tomt «0 kcal» ville sett ut som en dag uten mat, ikke
+                            // som en dag uten logg.
+                            if let i = energi.inn?.iDag, let k = i.kcal {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(Energi.medGulv(k, erGulv: i.erGulv))
+                                        .font(.system(size: 24, weight: .light))
+                                        .foregroundStyle(Farge.tekst)
+                                    Text("mat i dag")
+                                        .font(.system(size: 10)).foregroundStyle(Farge.dempet)
+                                }
+                            }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    // Mat vises BARE når den finnes. Et tomt «0 kcal» ville sett ut
-                    // som en dag uten mat, ikke som en dag uten logg.
-                    if let i = energi.inn?.iDag, let k = i.kcal {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(Energi.medGulv(k, erGulv: i.erGulv))
-                                .font(.system(size: 24, weight: .light)).foregroundStyle(Farge.tekst)
-                            Text("mat i dag").font(.system(size: 10)).foregroundStyle(Farge.dempet)
+                        if let s = energi.ut?.snitt7d, let v = Energi.kcal(s) {
+                            Text("Snitt ut 7 dager: \(v)")
+                                .font(.system(size: 11)).foregroundStyle(Farge.dempet)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                }
-                if let s = energi.ut?.snitt7d, let v = Energi.kcal(s) {
-                    Text("Snitt ut 7 dager: \(v)")
-                        .font(.system(size: 11)).foregroundStyle(Farge.dempet)
+                    Spacer(minLength: 8)
+                    // Sparkline over AKTIVITET, ikke total. Totalen er dominert av
+                    // hvileforbrenning og er nesten den samme hver dag — fjorten like
+                    // høye søyler sier ingenting. Aktiviteten er det som varierer, og
+                    // det eneste han faktisk styrer.
+                    if let dager = energi.ut?.siste14d, dager.count > 1 {
+                        Minigraf(verdier: dager.map { $0.aktiv ?? 0 })
+                    }
                 }
             }
             .padding(16)
@@ -117,9 +132,41 @@ struct EnergiSkjerm: View {
                 if let s = u.snitt30d { Tallrute(verdi: Energi.kcal(s) ?? "–", etikett: "Snitt 30 d") }
             }
             if let dager = u.siste14d, dager.count > 1 { stolper(dager) }
-            if let a = u.aktivSnitt7d, let v = Energi.kcal(a) {
-                Text("Av dette er \(v) aktivitet (snitt 7 d)")
-                    .font(.system(size: 11)).foregroundStyle(Farge.dempet)
+        }
+        // Egen bolk for aktiviteten. I stolpene over ligger den som en tynn topp på
+        // en vegg av hvileforbrenning — og det er nettopp aktiviteten som varierer,
+        // og det eneste han faktisk styrer. Skal den leses, må den få sin egen skala.
+        if let dager = u.siste14d, dager.count > 1,
+           dager.contains(where: { ($0.aktiv ?? 0) > 0 }) {
+            Energibolk(tittel: "Aktivitet") {
+                Chart {
+                    ForEach(dager) { dag in
+                        if let d = Trening.dato(dag.dato) {
+                            BarMark(x: .value("Dato", d, unit: .day),
+                                    y: .value("kcal", dag.aktiv ?? 0))
+                                .foregroundStyle(Farge.ok.opacity(0.85))
+                                .cornerRadius(3)
+                        }
+                    }
+                    if let a = u.aktivSnitt7d {
+                        RuleMark(y: .value("Snitt", a))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 4]))
+                            .foregroundStyle(Farge.dempet.opacity(0.7))
+                    }
+                }
+                .chartXAxis { AxisMarks(values: .stride(by: .day, count: 3)) { _ in
+                    AxisValueLabel(format: .dateTime.day().month(.abbreviated)
+                        .locale(Trening.norsk))
+                        .font(.system(size: 9)).foregroundStyle(Farge.dempet) } }
+                .chartYAxis { AxisMarks(position: .trailing) { _ in
+                    AxisGridLine().foregroundStyle(Farge.kort2)
+                    AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.dempet) } }
+                .frame(height: 130)
+                if let a = u.aktivSnitt7d, let v = Energi.kcal(a) {
+                    Text("Stiplet linje er snittet siste 7 dager: \(v)")
+                        .font(.system(size: 11)).foregroundStyle(Farge.dempet)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }
