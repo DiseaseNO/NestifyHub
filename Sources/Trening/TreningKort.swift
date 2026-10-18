@@ -286,11 +286,26 @@ struct Midjekort: View {
 /// bare en nøytral grå prikk.
 struct Vektkort: View {
     let vekt: Treningsdata.Vekt
+    /// Kortet brukes to steder: på oversikten, der det kan trykkes, og øverst på
+    /// vektskjermen, der det ikke kan. En vinkel på det siste ville lovet en
+    /// skjerm som ikke finnes.
+    var pil = true
 
     var body: some View {
         Flate {
             VStack(alignment: .leading, spacing: 12) {
-                Seksjonstittel(tekst: "Vekt")
+                // Alle de andre kortene på oversikten har en vinkel som sier at de
+                // kan trykkes. Vekt hadde den ikke, og så derfor ut som det eneste
+                // kortet som var en blindvei — selv om det ikke er det.
+                HStack {
+                    Seksjonstittel(tekst: "Vekt")
+                    if pil {
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Farge.dempet)
+                    }
+                }
                 if let dager = vekt.dagerISonen {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("\(dager)")

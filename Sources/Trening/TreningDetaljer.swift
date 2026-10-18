@@ -464,7 +464,7 @@ struct VektSkjerm: View {
 
     var body: some View {
         Detalj(tittel: "Vekt") {
-            if let v = vekt { Vektkort(vekt: v) }
+            if let v = vekt { Vektkort(vekt: v, pil: false) }
             // Skjermen besto av kortet man nettopp trykket på, og så tomt. En
             // detaljskjerm som ikke sier noe mer enn kortet, er et blindspor.
             // Snittene og de faktiske målingene er det eneste som finnes utover
