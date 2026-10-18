@@ -16,6 +16,8 @@ import Charts
 struct TreningModul: View {
     let api: API
     @State private var lager: TreningLager
+    /// Settes bare av CI, så skjermbildet dekker Reisen uten et simulert trykk.
+    @State private var visReisen = Testskjerm.reisen
     @Environment(\.scenePhase) private var scenefase
 
     init(api: API) {
@@ -57,6 +59,11 @@ struct TreningModul: View {
             .navigationTitle("Trening")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Farge.flate, for: .navigationBar)
+            .navigationDestination(isPresented: $visReisen) {
+                if let r = lager.data?.reisen {
+                    Reiseskjerm(reisen: r, vekt: lager.data?.vekt)
+                }
+            }
             .refreshable { await lager.last() }
             // Friskner opp så lenge skjermen er fremme; stopper av seg selv når den
             // forsvinner, fordi oppgaven kanselleres.

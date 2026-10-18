@@ -100,6 +100,16 @@ enum Testskjerm {
         #endif
     }
 
+    /// Åpner Reisen ved oppstart, `-skjerm trening -reisen 1`. Den ligger bak et
+    /// trykk i appen, og uten dette ville halve modulen aldri blitt knipset.
+    static var reisen: Bool {
+        #if DEBUG
+        UserDefaults.standard.string(forKey: "reisen") == "1"
+        #else
+        false
+        #endif
+    }
+
     /// Åpner Trening direkte, `-skjerm trening`. Modulen har ingen faner og ingen
     /// knapper, så ett skjermbilde dekker hele den — bortsett fra Reisen, som ligger
     /// bak et trykk.
