@@ -97,39 +97,57 @@ struct TreningModul: View {
 // MARK: - uka
 
 /// Ukekortet. Størst, øverst, og det eneste kortet som har et budskap.
+///
+/// ⚠️ **Hvert felt kan mangle, og det betyr «vet ikke» — ikke null.** Kilden utelater
+/// tall for uker den ikke har fullstendige data for, nettopp sånn at et hull i
+/// importen ikke skal se ut som «trente ikke». Derfor står det ingen `?? 0` her: et
+/// manglende felt skjuler sin egen rad i stedet for å vise en null som ser ut som
+/// et resultat.
+///
+/// I ytterste fall kommer bare uketallet og siste økt. Da viser kortet det — og det
+/// er bedre enn et tomt kort, fordi begge deler er sanne.
 private struct Ukekort: View {
     let uke: Treningsdata.Uke
 
     var body: some View {
         Flate(aktiv: uke.godkjent == true) {
             VStack(alignment: .leading, spacing: 14) {
-                streak
-                prikker
+                if let s = uke.streakUker { streak(s) } else { uketittel }
+                if let h = uke.historikk { prikker(h) }
                 brikker
-                fremdrift
+                if let g = uke.okter?.gjort, let m = uke.okter?.mal { fremdrift(g, m) }
                 if let m = uke.mangler, !m.isEmpty {
                     Text(m)                                  // ordrett fra kilden
                         .font(.system(size: 14))
                         .foregroundStyle(Farge.tekst)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                if let s = Trening.tall(uke.snitt4Uker, desimaler: 1) {
-                    Text("Snitt 4 uker: \(s) økter")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Farge.dempet)
-                }
+                bunnlinje
             }
             .padding(16)
         }
     }
 
-    private var streak: some View {
+    /// Uketallet. Alltid sant, og det eneste som står igjen når alt annet mangler.
+    private var uketittel: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text("\(uke.streakUker ?? 0)")
+            Text(ukenavn)
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(Farge.tekst)
+            if let p = periode {
+                Text(p).font(.system(size: 13)).foregroundStyle(Farge.dempet)
+            }
+            Spacer()
+        }
+    }
+
+    private func streak(_ antall: Int) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("\(antall)")
                 .font(.system(size: 44, weight: .light))
                 .foregroundStyle(uke.godkjent == true ? Farge.ok : Farge.tekst)
                 .contentTransition(.numericText())
-            Text((uke.streakUker ?? 0) == 1 ? "uke på rad" : "uker på rad")
+            Text(antall == 1 ? "uke på rad" : "uker på rad")
                 .font(.system(size: 13))
                 .foregroundStyle(Farge.dempet)
             Spacer()
@@ -145,59 +163,87 @@ private struct Ukekort: View {
         .animation(.smooth(duration: 0.4), value: uke.godkjent)
     }
 
-    /// De siste åtte ukene. Inneværende uke er en åpen ring som fylles når den godkjennes.
+    /// De 8 fullførte ukene, eldste først, pluss inneværende som åpen ring til høyre.
     ///
-    /// Kilden sender bare lengden på streaken, ikke hvilke uker som var godkjent. Vi
-    /// tegner derfor streaken bakover fra inneværende uke — det er det tallet faktisk
-    /// betyr, og å gjette på noe mer ville vært å finne på historikk.
-    private var prikker: some View {
-        let streak = max(0, uke.streakUker ?? 0)
-        return HStack(spacing: 6) {
-            ForEach(0..<8, id: \.self) { i in
-                let uketall = 7 - i                 // 0 = inneværende
-                let erNå = uketall == 0
-                let fylt = erNå ? (uke.godkjent == true) : uketall <= streak
+    /// Tegnes bare når kilden faktisk sender historikken. Den utledes ikke lenger av
+    /// streak-tallet — en utledet tom prikk kunne ikke skille «gikk galt» fra «ingen data».
+    private func prikker(_ historikk: [Bool]) -> some View {
+        HStack(spacing: 6) {
+            ForEach(Array(historikk.suffix(8).enumerated()), id: \.offset) { _, godkjent in
                 Circle()
-                    .strokeBorder(fylt ? Color.clear : Farge.strek,
-                                  lineWidth: erNå ? 1.5 : 1)
-                    .background(Circle().fill(fylt ? Farge.ok : Color.clear))
+                    .strokeBorder(godkjent ? Color.clear : Farge.strek, lineWidth: 1)
+                    .background(Circle().fill(godkjent ? Farge.ok : Color.clear))
                     .frame(width: 9, height: 9)
-                    // Inneværende uke er en tydelig åpen ring — den er «ennå ikke».
-                    // Eldre uker utenfor streaken dempes: vi VET ikke at de gikk
-                    // galt, vi vet bare at de ikke er med i denne streaken.
-                    .opacity(fylt ? 1 : (erNå ? 1 : 0.4))
             }
+            // Inneværende uke: åpen ring som fylles når den godkjennes.
+            Circle()
+                .strokeBorder(uke.godkjent == true ? Color.clear : Farge.dempet, lineWidth: 1.5)
+                .background(Circle().fill(uke.godkjent == true ? Farge.ok : Color.clear))
+                .frame(width: 9, height: 9)
         }
     }
 
-    private var brikker: some View {
-        HStack(spacing: 8) {
-            Brikke(ikon: "figure.strengthtraining.traditional", navn: "Styrke", antall: uke.styrke ?? 0)
-            Brikke(ikon: "figure.run", navn: "Løp", antall: uke.lop ?? 0)
-            if let a = uke.annet, a > 0 {
-                Brikke(ikon: "figure.mixed.cardio", navn: "Annet", antall: a)
+    /// Brikkene vises bare når kilden har tall. Grå «0» ville sagt «ingen økter»,
+    /// og det er noe helt annet enn «vi vet ikke ennå».
+    @ViewBuilder private var brikker: some View {
+        if uke.styrke != nil || uke.lop != nil {
+            HStack(spacing: 8) {
+                if let s = uke.styrke {
+                    Brikke(ikon: "figure.strengthtraining.traditional", navn: "Styrke", antall: s)
+                }
+                if let l = uke.lop {
+                    Brikke(ikon: "figure.run", navn: "Løp", antall: l)
+                }
+                if let a = uke.annet, a > 0 {
+                    Brikke(ikon: "figure.mixed.cardio", navn: "Annet", antall: a)
+                }
             }
         }
     }
 
     /// Tre segmenter — én per planlagt økt. En delt linje gjør «1 av 3» leselig uten å
     /// lese tallet.
-    private var fremdrift: some View {
-        let gjort = uke.okter?.gjort ?? 0
-        let mal = max(1, uke.okter?.mal ?? 3)
+    private func fremdrift(_ gjort: Int, _ mal: Int) -> some View {
+        let m = max(1, mal)
         return VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 4) {
-                ForEach(0..<mal, id: \.self) { i in
+                ForEach(0..<m, id: \.self) { i in
                     Capsule()
                         .fill(i < gjort ? Farge.ok : Farge.strek)
                         .frame(height: 5)
                 }
             }
-            Text("\(gjort) av \(mal) økter denne uka")
+            Text("\(gjort) av \(m) økter denne uka")
                 .font(.system(size: 11))
                 .foregroundStyle(Farge.dempet)
         }
         .animation(.smooth(duration: 0.35), value: gjort)
+    }
+
+    /// Snitt og siste økt. `sist_okt` kommer selv når resten av uka mangler, så den
+    /// gjør et ellers tomt kort meningsfullt.
+    @ViewBuilder private var bunnlinje: some View {
+        let deler: [String] = [
+            Trening.tall(uke.snitt4Uker, desimaler: 1).map { "Snitt 4 uker: \($0) økter" },
+            Trening.kortDato(uke.sistOkt).map { "Siste økt \($0)" },
+        ].compactMap { $0 }
+        if !deler.isEmpty {
+            Text(deler.joined(separator: "  ·  "))
+                .font(.system(size: 11))
+                .foregroundStyle(Farge.dempet)
+        }
+    }
+
+    private var ukenavn: String {
+        guard let d = Trening.dato(uke.start) else { return "Denne uka" }
+        var k = Calendar(identifier: .iso8601)
+        k.locale = Locale(identifier: "nb_NO")
+        return "Uke \(k.component(.weekOfYear, from: d))"
+    }
+
+    private var periode: String? {
+        guard let f = Trening.kortDato(uke.start), let t = Trening.kortDato(uke.slutt) else { return nil }
+        return "\(f) – \(t)"
     }
 }
 
@@ -325,12 +371,14 @@ private struct Vektkort: View {
         Flate {
             VStack(alignment: .leading, spacing: 12) {
                 Seksjonstittel(tekst: "Vekt")
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("\(vekt.dagerISonen ?? 0)")
-                        .font(.system(size: 34, weight: .light))
-                        .foregroundStyle(Farge.ok)
-                    Text("dager i sonen")
-                        .font(.system(size: 13)).foregroundStyle(Farge.dempet)
+                if let dager = vekt.dagerISonen {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(dager)")
+                            .font(.system(size: 34, weight: .light))
+                            .foregroundStyle(Farge.ok)
+                        Text(dager == 1 ? "dag i sonen" : "dager i sonen")
+                            .font(.system(size: 13)).foregroundStyle(Farge.dempet)
+                    }
                 }
                 if let p = vekt.siste30d, p.count > 1 { graf(p) }
                 HStack(spacing: 12) {
@@ -409,7 +457,7 @@ private struct Proteinkort: View {
                         Text("Snitt 7 d: \(s) g").font(.system(size: 11)).foregroundStyle(Farge.dempet)
                     }
                 }
-                if protein.gram != nil { meter }
+                if protein.gram != nil, protein.mal?.fra != nil { meter }
             }
             .padding(16)
         }

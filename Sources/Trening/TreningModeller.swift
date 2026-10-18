@@ -36,6 +36,13 @@ struct Treningsdata: Decodable {
 
     // MARK: uka
 
+    /// ⚠️ **Hvert felt her kan mangle, og det betyr «vet ikke» — ikke null.**
+    ///
+    /// Kilden regner bare en uke som gyldig hvis den har hentet aktivitetsdata for
+    /// alle dagene i den. Mangler én dag, utelates tallene framfor å vise et tall
+    /// som ser riktig ut. Et hull i importen skal aldri se ut som «trente ikke».
+    ///
+    /// I ytterste fall kommer bare `start`, `slutt` og `sistOkt`. Kortet må tåle det.
     struct Uke: Decodable {
         let start: String?
         let slutt: String?
@@ -46,6 +53,12 @@ struct Treningsdata: Decodable {
         let lop: Int?
         let annet: Int?
         let snitt4Uker: Double?
+        /// De 8 fullførte ukene før inneværende, eldste først. Inneværende uke er
+        /// `godkjent`, ikke en del av denne.
+        ///
+        /// **Utelates av kilden hvis noen av ukene mangler importdata.** Da tegnes
+        /// ingen prikker — vi vet ikke, og en tom prikk ville løyet.
+        let historikk: [Bool]?
         /// Hovedbudskapet, ferdig formulert av kilden. Vises **ordrett**. Appen lager
         /// aldri sin egen vurdering av hvordan uka går.
         let mangler: String?
@@ -54,7 +67,7 @@ struct Treningsdata: Decodable {
         struct Okter: Decodable { let gjort: Int?; let mal: Int? }
 
         enum CodingKeys: String, CodingKey {
-            case start, slutt, godkjent, okter, styrke, lop, annet, mangler
+            case start, slutt, godkjent, okter, styrke, lop, annet, mangler, historikk
             case streakUker = "streak_uker"
             case snitt4Uker = "snitt_4_uker"
             case sistOkt = "sist_okt"
