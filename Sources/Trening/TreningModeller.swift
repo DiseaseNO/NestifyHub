@@ -34,6 +34,210 @@ struct Treningsdata: Decodable {
     let reisen: Reisen?
     let kontekst: Kontekst?
 
+    // MARK: v2 — det Thomas savnet
+
+    /// Én setning om dagen i dag. Ferdig formulert av kilden.
+    let iDag: IDag?
+    /// Konkrete råd, viktigst først. Maks fire.
+    let rad: [Rad]?
+    /// Det som går riktig vei. Skjules helt hvis tom — ingen «ingen fremgang».
+    let fremgang: [Fremgang]?
+    let form: Form?
+    let lop: Lop?
+    let styrke: Styrke?
+    /// De siste 40 øktene, nyeste først.
+    let okter: [Okt]?
+
+    enum CodingKeys: String, CodingKey {
+        case generert, uke, rekorder, midje, vekt, protein, reisen, kontekst
+        case rad, fremgang, form, lop, styrke, okter
+        case iDag = "i_dag"
+    }
+
+    struct IDag: Decodable {
+        let dato: String?
+        /// Hovedbudskapet øverst på skjermen. Vises ordrett.
+        let forslag: String?
+        let readiness: Double?
+    }
+
+    struct Rad: Decodable, Identifiable {
+        let tittel: String?
+        let tekst: String?
+        /// `sovn`, `styrke`, `kondisjon` eller `belastning` — styrer bare ikonet.
+        let kategori: String?
+        var id: String { (tittel ?? "") + (kategori ?? "") }
+        var ikon: String {
+            switch kategori {
+            case "sovn":       "bed.double"
+            case "styrke":     "figure.strengthtraining.traditional"
+            case "kondisjon":  "heart"
+            case "belastning": "gauge.with.dots.needle.50percent"
+            default:           "lightbulb"
+            }
+        }
+    }
+
+    struct Fremgang: Decodable, Identifiable {
+        let tittel: String?
+        let tekst: String?
+        let retning: String?
+        var id: String { tittel ?? "" }
+    }
+
+    // MARK: form
+
+    struct Form: Decodable {
+        let treningsstatus: Treningsstatus?
+        let vo2max: Vo2max?
+        let fitnessAlder: FitnessAlder?
+        let belastning: Belastning?
+        let readiness: Readiness?
+        let hvilepuls: Snitt?
+        let hrv: Hrv?
+        let sovn: Sovn?
+        let terskel: Terskel?
+
+        enum CodingKeys: String, CodingKey {
+            case treningsstatus, vo2max, belastning, readiness, hvilepuls, hrv, sovn, terskel
+            case fitnessAlder = "fitness_alder"
+        }
+
+        struct Treningsstatus: Decodable { let tekst: String?; let forklaring: String?; let dato: String? }
+
+        struct Vo2max: Decodable {
+            let verdi: Double?
+            let dato: String?
+            /// Verdien for 90 dager siden, så retningen kan vises uten å regne selv.
+            let for90d: Double?
+            let topp: Topp?
+            let historikk: [Maaned]?
+            enum CodingKeys: String, CodingKey { case verdi, dato, topp, historikk; case for90d = "for_90d" }
+            struct Topp: Decodable { let verdi: Double?; let dato: String? }
+            struct Maaned: Decodable, Identifiable {
+                let mnd: String?; let verdi: Double?
+                var id: String { mnd ?? "" }
+            }
+        }
+
+        struct FitnessAlder: Decodable { let verdi: Double?; let alder: Double?; let oppnaelig: Double? }
+
+        struct Belastning: Decodable {
+            let akutt: Double?; let kronisk: Double?; let acwr: Double?
+            /// Ferdig vurdering i tekst. Appen tolker aldri tallene selv.
+            let vurdering: String?
+        }
+
+        struct Readiness: Decodable { let score: Double?; let niva: String?; let dato: String? }
+
+        struct Snitt: Decodable {
+            let snitt7d: Double?; let snitt90d: Double?
+            enum CodingKeys: String, CodingKey { case snitt7d = "snitt_7d"; case snitt90d = "snitt_90d" }
+        }
+
+        struct Hrv: Decodable {
+            let snitt7d: Double?; let snitt30d: Double?; let siste30d: [Maaling]?
+            enum CodingKeys: String, CodingKey {
+                case snitt7d = "snitt_7d"; case snitt30d = "snitt_30d"; case siste30d = "siste_30d"
+            }
+            struct Maaling: Decodable, Identifiable {
+                let dato: String?; let ms: Double?
+                var id: String { dato ?? "" }
+            }
+        }
+
+        struct Sovn: Decodable {
+            let snitt7d: Double?; let snitt30d: Double?; let siste30d: [Natt]?
+            enum CodingKeys: String, CodingKey {
+                case snitt7d = "snitt_7d"; case snitt30d = "snitt_30d"; case siste30d = "siste_30d"
+            }
+            struct Natt: Decodable, Identifiable {
+                let dato: String?; let timer: Double?
+                var id: String { dato ?? "" }
+            }
+        }
+
+        struct Terskel: Decodable { let tempo: String?; let puls: Double? }
+    }
+
+    // MARK: løping og styrke
+
+    struct Uketall: Decodable, Identifiable {
+        let start: String?
+        let okter: Int?
+        let km: Double?
+        let min: Double?
+        var id: String { start ?? "" }
+    }
+
+    struct Lop: Decodable {
+        let uker: [Uketall]?
+        let kmSnitt4u: Double?
+        let lengste30d: Okt?
+        /// Distanse → tid. Rekkefølgen i JSON er ikke garantert, så visningen sorterer selv.
+        let prediksjon: [String: String]?
+        let prediksjonDato: String?
+        let rekorder: [Rekordlop]?
+        enum CodingKeys: String, CodingKey {
+            case uker, prediksjon, rekorder
+            case kmSnitt4u = "km_snitt_4u"
+            case lengste30d = "lengste_30d"
+            case prediksjonDato = "prediksjon_dato"
+        }
+        struct Rekordlop: Decodable, Identifiable {
+            let distanse: String?; let tid: String?; let km: Double?; let dato: String?
+            var id: String { (distanse ?? "") + (dato ?? "") }
+        }
+    }
+
+    struct Styrke: Decodable {
+        let uker: [Uketall]?
+        let okterSnitt4u: Double?
+        let malPerUke: Double?
+        enum CodingKeys: String, CodingKey {
+            case uker
+            case okterSnitt4u = "okter_snitt_4u"
+            case malPerUke = "mal_per_uke"
+        }
+    }
+
+    // MARK: økter
+
+    struct Okt: Decodable, Identifiable {
+        let id: String?
+        let dato: String?
+        let start: String?
+        let type: String?
+        let typeTekst: String?
+        let navn: String?
+        let varighetMin: Double?
+        let km: Double?
+        let tempo: String?
+        let snittpuls: Double?
+        let makspuls: Double?
+        let kcal: Double?
+        let hoydemeter: Double?
+        let aerobTe: Double?
+        let anaerobTe: Double?
+        let treningslast: Double?
+
+        enum CodingKeys: String, CodingKey {
+            case id, dato, start, type, navn, km, tempo, snittpuls, makspuls, kcal, hoydemeter, treningslast
+            case typeTekst = "type_tekst"
+            case varighetMin = "varighet_min"
+            case aerobTe = "aerob_te"
+            case anaerobTe = "anaerob_te"
+        }
+
+        var erStyrke: Bool { type?.contains("strength") == true || typeTekst?.lowercased().contains("styrke") == true }
+        var erLop: Bool { type?.contains("running") == true }
+        var ikon: String {
+            if erStyrke { return "figure.strengthtraining.traditional" }
+            if erLop { return "figure.run" }
+            return "figure.mixed.cardio"
+        }
+    }
+
     // MARK: uka
 
     /// ⚠️ **Hvert felt her kan mangle, og det betyr «vet ikke» — ikke null.**

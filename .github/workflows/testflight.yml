@@ -265,9 +265,11 @@ jobs:
             # Trening mot stubben. Modulen skjuler kort som mangler data, så et
             # skjermbilde er den eneste måten å se at de RIKTIGE kortene er borte.
             knips 10-trening -server localhost:8443 -token ci -skjerm trening
-            # Reisen ligger bak et trykk. Uten eget flagg ville halve modulen
-            # aldri blitt sett før den var ute hos brukeren.
-            knips 10b-reisen -server localhost:8443 -token ci -skjerm trening -reisen 1
+            # Detaljskjermene ligger bak trykk. Uten egne flagg ville mesteparten
+            # av modulen gått ut til bruker uten at noen hadde sett den rendret.
+            for m in uke form lop styrke restitusjon vekt reisen; do
+              knips "10-trening-$m" -server localhost:8443 -token ci -skjerm trening -trening "$m"
+            done
             knips 10-oppgaver -server localhost:8443 -token ci -skjerm hus -fane oppgaver
             knips 11-oversikt -server localhost:8443 -token ci -skjerm hus -fane oversikt
             knips 12-biler    -server localhost:8443 -token ci -skjerm hus -fane biler

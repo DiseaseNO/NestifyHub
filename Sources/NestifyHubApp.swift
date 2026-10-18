@@ -100,13 +100,24 @@ enum Testskjerm {
         #endif
     }
 
-    /// Åpner Reisen ved oppstart, `-skjerm trening -reisen 1`. Den ligger bak et
-    /// trykk i appen, og uten dette ville halve modulen aldri blitt knipset.
-    static var reisen: Bool {
+    /// Åpner en detaljskjerm i Trening ved oppstart,
+    /// `-skjerm trening -trening form`. Skjermene ligger bak et trykk, og uten dette
+    /// ville mesteparten av modulen aldri blitt knipset — og en skjerm man ikke har
+    /// sett rendret, er ikke verifisert.
+    static var treningsmål: Treningsmål? {
         #if DEBUG
-        UserDefaults.standard.string(forKey: "reisen") == "1"
+        switch UserDefaults.standard.string(forKey: "trening") {
+        case "uke":         .uke
+        case "form":        .form
+        case "lop":         .lop
+        case "styrke":      .styrke
+        case "vekt":        .vekt
+        case "restitusjon": .restitusjon
+        case "reisen":      .reisen
+        default:            nil
+        }
         #else
-        false
+        nil
         #endif
     }
 
