@@ -92,7 +92,7 @@ struct Reiseskjerm: View {
                 // da kan samme årstall stå to ganger — det leses som en feil.
                 AxisMarks(values: .stride(by: .year)) { _ in
                     AxisGridLine().foregroundStyle(Farge.strek.opacity(0.5))
-                    AxisValueLabel(format: .dateTime.year())
+                    AxisValueLabel(format: .dateTime.year().locale(Trening.norsk))
                         .font(.system(size: 9)).foregroundStyle(Farge.dempet)
                 }
             }

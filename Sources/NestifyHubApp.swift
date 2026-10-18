@@ -111,6 +111,7 @@ enum Testskjerm {
         case "form":        .form
         case "lop":         .lop
         case "styrke":      .styrke
+        case "energi":      .energi
         case "vekt":        .vekt
         case "restitusjon": .restitusjon
         case "reisen":      .reisen

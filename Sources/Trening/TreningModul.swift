@@ -53,6 +53,7 @@ struct TreningModul: View {
         case .lop:         LopSkjerm(lop: d?.lop, okter: d?.okter ?? [])
         case .styrke:      StyrkeSkjerm(styrke: d?.styrke, rad: d?.rad ?? [],
                                         rekorder: d?.rekorder ?? [], okter: d?.okter ?? [])
+        case .energi:      EnergiSkjerm(energi: d?.energi)
         case .vekt:        VektSkjerm(vekt: d?.vekt, reisen: d?.reisen)
         case .restitusjon: RestitusjonSkjerm(form: d?.form)
         case .reisen:      Reiseskjerm(reisen: d?.reisen ?? .tom, vekt: d?.vekt)

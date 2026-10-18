@@ -122,7 +122,8 @@ struct UkeSkjerm: View {
                 Treningsbolk(tittel: "8 uker tilbake") {
                     // Eldste først, som kilden sender dem.
                     ForEach(Array(h.enumerated()), id: \.offset) { i, godkjent in
-                        Rad(venstre: "For \(h.count - i) uker siden",
+                        Rad(venstre: h.count - i == 1 ? "For 1 uke siden"
+                                                      : "For \(h.count - i) uker siden",
                             høyre: godkjent ? "godkjent" : "ikke godkjent",
                             farge: godkjent ? Farge.ok : Farge.dempet)
                     }
@@ -223,8 +224,12 @@ struct FormSkjerm: View {
                     }
                 }
                 .chartYScale(domain: .automatic(includesZero: false))
-                .chartXAxis { AxisMarks(values: .stride(by: .year)) { _ in
-                    AxisValueLabel(format: .dateTime.year())
+                // Årsstrek ga ÉN etikett — «2026», midt i grafen. Da vet man ikke om
+                // kurven dekker tre måneder eller tre år. Halvår gir tre–fire
+                // etiketter og et faktisk tidsrom.
+                .chartXAxis { AxisMarks(values: .stride(by: .month, count: 6)) { _ in
+                    AxisValueLabel(format: .dateTime.month(.abbreviated).year(.twoDigits)
+                        .locale(Trening.norsk))
                         .font(.system(size: 9)).foregroundStyle(Farge.dempet) } }
                 .chartYAxis { AxisMarks(position: .trailing) { _ in
                     AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.dempet) } }
@@ -257,7 +262,7 @@ struct LopSkjerm: View {
                         }
                     }
                     .chartXAxis { AxisMarks(values: .stride(by: .month)) { _ in
-                        AxisValueLabel(format: .dateTime.month(.abbreviated))
+                        AxisValueLabel(format: .dateTime.month(.abbreviated).locale(Trening.norsk))
                             .font(.system(size: 9)).foregroundStyle(Farge.dempet) } }
                     .chartYAxis { AxisMarks(position: .trailing) { _ in
                         AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.dempet) } }
@@ -284,8 +289,11 @@ struct LopSkjerm: View {
             if let r = lop?.rekorder, !r.isEmpty {
                 Treningsbolk(tittel: "Personlige rekorder") {
                     ForEach(r) { rek in
-                        Rad(venstre: rek.distanse ?? (Trening.tall(rek.km).map { "\($0) km" } ?? "—"),
-                            høyre: rek.tid ?? "—",
+                        // «Lengste tur» har km, ikke tid. Første utgave leste bare
+                        // `tid` på høyre side, så raden sto med en tankestrek der
+                        // rekorden skulle stått.
+                        Rad(venstre: rek.distanse ?? "Rekord",
+                            høyre: rek.tid ?? (Trening.tall(rek.km).map { "\($0) km" } ?? "—"),
                             under: Trening.kortDato(rek.dato).map { "satt \($0)" })
                     }
                 }
@@ -338,7 +346,7 @@ struct StyrkeSkjerm: View {
                         }
                     }
                     .chartXAxis { AxisMarks(values: .stride(by: .month)) { _ in
-                        AxisValueLabel(format: .dateTime.month(.abbreviated))
+                        AxisValueLabel(format: .dateTime.month(.abbreviated).locale(Trening.norsk))
                             .font(.system(size: 9)).foregroundStyle(Farge.dempet) } }
                     .chartYAxis { AxisMarks(position: .trailing) { _ in
                         AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.dempet) } }
@@ -457,6 +465,35 @@ struct VektSkjerm: View {
     var body: some View {
         Detalj(tittel: "Vekt") {
             if let v = vekt { Vektkort(vekt: v) }
+            // Skjermen besto av kortet man nettopp trykket på, og så tomt. En
+            // detaljskjerm som ikke sier noe mer enn kortet, er et blindspor.
+            // Snittene og de faktiske målingene er det eneste som finnes utover
+            // kortet — og de holder, nettopp fordi vekt ikke skal rope høyt.
+            if let v = vekt, v.snitt7d != nil || v.snitt14d != nil || v.siste != nil {
+                Treningsbolk(tittel: "Snitt") {
+                    HStack(spacing: 0) {
+                        if let s = v.siste?.kg {
+                            Tallrute(verdi: (Trening.tall(s) ?? "–") + " kg", etikett: "Siste måling")
+                        }
+                        if let s = v.snitt7d {
+                            Tallrute(verdi: (Trening.tall(s) ?? "–") + " kg", etikett: "Snitt 7 d")
+                        }
+                        if let s = v.snitt14d {
+                            Tallrute(verdi: (Trening.tall(s) ?? "–") + " kg", etikett: "Snitt 14 d")
+                        }
+                    }
+                }
+            }
+            if let m = vekt?.siste30d, !m.isEmpty {
+                Treningsbolk(tittel: "Målinger") {
+                    // Nyeste først. Ingen pil, ingen farge: en måling er en måling,
+                    // og forskjellen fra i går er støy.
+                    ForEach(Array(m.reversed().prefix(14))) { p in
+                        Rad(venstre: Trening.kortDato(p.dato) ?? "–",
+                            høyre: (Trening.tall(p.kg) ?? "–") + " kg")
+                    }
+                }
+            }
             if let r = reisen, let p = r.punkter, p.count > 1 {
                 NavigationLink(value: Treningsmål.reisen) {
                     Flate {

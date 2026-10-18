@@ -44,6 +44,12 @@ struct TreningOversikt: View {
                         NavigationLink(value: Treningsmål.styrke) { Styrkekort(styrke: s, uke: d.uke) }
                             .buttonStyle(Trykkflate())
                     }
+                    // Energi står etter Løping og Styrke, og før vekt: forbruk er
+                    // noe man gjør, vekt er bare en følge av det.
+                    if let e = d.energi, e.ut != nil || e.inn != nil {
+                        NavigationLink(value: Treningsmål.energi) { Energikort(energi: e) }
+                            .buttonStyle(Trykkflate())
+                    }
                     if let v = d.vekt {
                         NavigationLink(value: Treningsmål.vekt) { Vektkort(vekt: v) }
                             .buttonStyle(Trykkflate())
@@ -86,7 +92,7 @@ struct TreningOversikt: View {
 
 /// Hvilke skjermer man kan trykke seg inn til.
 enum Treningsmål: Hashable {
-    case uke, form, lop, styrke, vekt, restitusjon, reisen
+    case uke, form, lop, styrke, energi, vekt, restitusjon, reisen
     case okt(String)
 }
 

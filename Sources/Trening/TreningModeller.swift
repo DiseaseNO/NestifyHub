@@ -47,10 +47,118 @@ struct Treningsdata: Decodable {
     let styrke: Styrke?
     /// De siste 40 øktene, nyeste først.
     let okter: [Okt]?
+    let energi: Energi?
+
+    // MARK: energi
+
+    /// Mat inn og forbrenning ut.
+    ///
+    /// ⚠️ **`komplett: false` betyr «minst så mye», ikke «så mye».** Thomas sier selv
+    /// at han er dårlig til å registrere mat, og logger ikke alt. Et tall fra en delvis
+    /// dag er derfor et gulv, ikke en sum — og appen skriver «minst 1 240 kcal».
+    ///
+    /// Derav to regler som går igjen i hele visningen:
+    /// - **Aldri inn mot ut som et underskudd på en delvis dag.** Det ville vært et
+    ///   regnestykke med feil fasit, presentert som sannhet.
+    /// - **En delvis dag ser nøytral ut.** Ingen advarsel, ingen «du har glemt å
+    ///   logge». Logging er valgfritt, og skjermen skal ikke mase.
+    ///
+    /// Først når kilden selv sender `balanse` — den krever fem komplette dager —
+    /// finnes det et regnestykke å vise, og da er teksten ferdig formulert der.
+    struct Energi: Decodable {
+        let ut: Ut?
+        let inn: Inn?
+        /// Kommer først ved fem eller flere komplette dager.
+        let balanse: Balanse?
+        /// Kommer først ved fjorten eller flere komplette dager.
+        let kalibrertTdee: Tdee?
+
+        enum CodingKeys: String, CodingKey {
+            case ut, inn, balanse
+            case kalibrertTdee = "kalibrert_tdee"
+        }
+
+        struct Ut: Decodable {
+            let iDagSaLangt: SaLangt?
+            let snitt7d: Double?
+            let aktivSnitt7d: Double?
+            let snitt30d: Double?
+            let siste14d: [Dag]?
+
+            enum CodingKeys: String, CodingKey {
+                case snitt7d = "snitt_7d", aktivSnitt7d = "aktiv_snitt_7d"
+                case snitt30d = "snitt_30d", siste14d = "siste_14d"
+                case iDagSaLangt = "i_dag_sa_langt"
+            }
+            /// Dagen i dag, som ikke er ferdig. `hentet` er klokkeslettet tallet
+            /// gjelder fram til — uten det ville «1 175 kcal» sett ut som et døgn.
+            struct SaLangt: Decodable { let total: Double?; let aktiv: Double?; let hentet: String? }
+            struct Dag: Decodable, Identifiable {
+                let dato: String?; let total: Double?; let aktiv: Double?; let hvile: Double?
+                var id: String { dato ?? "" }
+            }
+        }
+
+        struct Inn: Decodable {
+            let iDag: Dag?
+            let maltiderIDag: [Maltid]?
+            let snitt7d: Double?
+            let proteinSnitt7d: Double?
+            let dagerLogget7d: Int?
+            let dagerKomplett7d: Int?
+            let siste14d: [Dag]?
+
+            enum CodingKeys: String, CodingKey {
+                case snitt7d = "snitt_7d", siste14d = "siste_14d"
+                case iDag = "i_dag", maltiderIDag = "maltider_i_dag"
+                case proteinSnitt7d = "protein_snitt_7d"
+                case dagerLogget7d = "dager_logget_7d"
+                case dagerKomplett7d = "dager_komplett_7d"
+            }
+
+            struct Dag: Decodable, Identifiable {
+                let dato: String?
+                let kcal: Double?
+                let protein: Double?
+                let karbo: Double?
+                let fett: Double?
+                /// Falsk = dagen er ikke ferdig logget. Tallet er da et **gulv**.
+                let komplett: Bool?
+                var id: String { dato ?? "i_dag" }
+                var erGulv: Bool { komplett == false }
+            }
+
+            struct Maltid: Decodable, Identifiable {
+                let tid: String?
+                let maltid: String?
+                let beskrivelse: String?
+                let kcal: Double?
+                let protein: Double?
+                var id: String { (tid ?? "") + (maltid ?? "") }
+            }
+        }
+
+        /// Ferdig formulert av kilden. Appen regner aldri differansen selv.
+        struct Balanse: Decodable {
+            let innSnitt7d: Double?
+            let utSnitt7d: Double?
+            let differanse: Double?
+            let tekst: String?
+            enum CodingKeys: String, CodingKey {
+                case differanse, tekst
+                case innSnitt7d = "inn_snitt_7d"
+                case utSnitt7d = "ut_snitt_7d"
+            }
+        }
+
+        struct Tdee: Decodable {
+            let tdee: Double?; let fra: String?; let til: String?; let metode: String?
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case generert, uke, rekorder, midje, vekt, protein, reisen, kontekst
-        case rad, fremgang, form, lop, styrke, okter
+        case rad, fremgang, form, lop, styrke, okter, energi
         case iDag = "i_dag"
     }
 
@@ -404,6 +512,14 @@ struct Punkt: Decodable, Identifiable {
 // MARK: - formatering
 
 enum Trening {
+    /// Norsk, alltid.
+    ///
+    /// Appen setter `\.locale` i miljøet, men **Swift Charts' aksetiketter leser det
+    /// ikke** når formatet er oppgitt eksplisitt med `.dateTime` — de faller tilbake
+    /// på enhetens locale. I CI står simulatoren på engelsk, og aksene sa «Aug Sep
+    /// Oct» i en app som ellers er norsk. Hver akse må derfor si det selv.
+    static let norsk = Locale(identifier: "nb_NO")
+
     /// «76,7» — komma, og ingen unødvendige desimaler.
     static func tall(_ v: Double?, desimaler: Int = 1) -> String? {
         guard let v else { return nil }
