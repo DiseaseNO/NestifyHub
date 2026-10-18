@@ -556,8 +556,13 @@ struct ØktSkjerm: View {
                             Text("\(st.nr ?? 0).")
                                 .font(.system(size: 12).monospacedDigit())
                                 .foregroundStyle(Farge.dempet).frame(width: 22, alignment: .trailing)
-                            Text(settekst(st))
-                                .font(.system(size: 13)).foregroundStyle(Farge.tekst)
+                            // Ingen tankestrek når vekt og antall mangler. Raden har
+                            // allerede nummeret sitt og varigheten, og det ER settet.
+                            // En «–» ville sagt «her mangler noe», og modulens regel
+                            // er at et tomt felt skjuler seg selv.
+                            if let t = settekst(st) {
+                                Text(t).font(.system(size: 13)).foregroundStyle(Farge.tekst)
+                            }
                             Spacer(minLength: 6)
                             if let v = st.varighetS, v > 0 {
                                 Text(varighet(v)).font(.system(size: 11).monospacedDigit())
@@ -580,14 +585,15 @@ struct ØktSkjerm: View {
         return d.isEmpty ? nil : d.joined(separator: "  ·  ")
     }
 
-    /// «24 kg × 10», «24 kg» når antallet mangler, «–» når begge gjør det.
-    private func settekst(_ st: Treningsdata.Okt.Sett) -> String {
+    /// «24 kg × 10», «24 kg» når antallet ikke er bekreftet, og **ingenting** når
+    /// ingen av delene finnes — da bærer settnummeret og varigheten raden alene.
+    private func settekst(_ st: Treningsdata.Okt.Sett) -> String? {
         let kg = st.kg.flatMap { Trening.tall($0) }.map { "\($0) kg" }
         switch (kg, st.reps) {
         case let (k?, r?): return "\(k) × \(r)"
         case let (k?, nil): return k
         case let (nil, r?): return "\(r) rep"
-        default: return "–"
+        default: return nil
         }
     }
 
