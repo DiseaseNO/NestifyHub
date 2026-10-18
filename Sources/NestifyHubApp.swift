@@ -20,6 +20,8 @@ struct NestifyHubApp: App {
             Group {
                 if !api.erKlar {
                     Paring(api: api)
+                } else if Testskjerm.trening {
+                    TreningModul(api: api)
                 } else if Testskjerm.hus {
                     // Huset kan ikke knipses gjennom FPL-veien, og det var nettopp der
                     // en feil fikk stå: koden var riktig, men arket var ikke festet.
@@ -93,6 +95,17 @@ enum Testskjerm {
     static var tilTropp: Bool {
         #if DEBUG
         UserDefaults.standard.bool(forKey: "tropp")
+        #else
+        false
+        #endif
+    }
+
+    /// Åpner Trening direkte, `-skjerm trening`. Modulen har ingen faner og ingen
+    /// knapper, så ett skjermbilde dekker hele den — bortsett fra Reisen, som ligger
+    /// bak et trykk.
+    static var trening: Bool {
+        #if DEBUG
+        UserDefaults.standard.string(forKey: "skjerm") == "trening"
         #else
         false
         #endif

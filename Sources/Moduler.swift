@@ -23,6 +23,8 @@ struct Modul: Identifiable {
                   undertekst: "anbefaling, tropp og helse") { AnyView(FplModul(api: $0)) },
             Modul(id: "hus", navn: "Huset", ikon: "house",
                   undertekst: "lys, varme og forbruk") { AnyView(HusModul(api: $0)) },
+            Modul(id: "trening", navn: "Trening", ikon: "figure.run",
+                  undertekst: "uka, styrke og vekt") { AnyView(TreningModul(api: $0)) },
         ]
     }
 }

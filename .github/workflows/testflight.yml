@@ -166,10 +166,24 @@ jobs:
           CI_DATA_2: ${{ secrets.CI_DATA_2 }}
           CI_DATA_3: ${{ secrets.CI_DATA_3 }}
           CI_DATA_4: ${{ secrets.CI_DATA_4 }}
+          CI_DATA_5: ${{ secrets.CI_DATA_5 }}
+          CI_DATA_6: ${{ secrets.CI_DATA_6 }}
+          CI_DATA_7: ${{ secrets.CI_DATA_7 }}
+          CI_DATA_8: ${{ secrets.CI_DATA_8 }}
+          CI_DATA_9: ${{ secrets.CI_DATA_9 }}
+          CI_DATA_10: ${{ secrets.CI_DATA_10 }}
+          CI_DATA_11: ${{ secrets.CI_DATA_11 }}
+          CI_DATA_12: ${{ secrets.CI_DATA_12 }}
+          CI_DATA_13: ${{ secrets.CI_DATA_13 }}
+          CI_DATA_14: ${{ secrets.CI_DATA_14 }}
+          CI_DATA_15: ${{ secrets.CI_DATA_15 }}
+          CI_DATA_16: ${{ secrets.CI_DATA_16 }}
         run: |
           # Delt i biter fordi én GitHub-hemmelighet tar 48 kB, og datasettet er større.
           # `secrets` kan ikke brukes i en `if:`-betingelse, så sjekken må stå her.
-          printf '%s%s%s%s' "$CI_DATA_1" "$CI_DATA_2" "$CI_DATA_3" "$CI_DATA_4" > ci-data.b64
+          printf '%s' "$CI_DATA_1$CI_DATA_2$CI_DATA_3$CI_DATA_4$CI_DATA_5$CI_DATA_6"\
+                   "$CI_DATA_7$CI_DATA_8$CI_DATA_9$CI_DATA_10$CI_DATA_11"\
+                   "$CI_DATA_12$CI_DATA_13$CI_DATA_14$CI_DATA_15$CI_DATA_16" > ci-data.b64
           [ -s ci-data.b64 ] || { echo "::warning::CI_DATA_* mangler — ingen stubbe"; exit 0; }
           base64 --decode < ci-data.b64 | gunzip > ci-data.json
           python3 -c "import json;d=json.load(open('ci-data.json'));print('datasett:', ', '.join(d))"
@@ -248,6 +262,9 @@ jobs:
             # Åpner romarket ved oppstart, så dimmeren og varmen kommer med.
             knips 8-hus-rom  -server localhost:8443 -token ci -skjerm hus -apnerom "Kjøkken"
             knips 9-strom    -server localhost:8443 -token ci -skjerm hus -fane strom
+            # Trening mot stubben. Modulen skjuler kort som mangler data, så et
+            # skjermbilde er den eneste måten å se at de RIKTIGE kortene er borte.
+            knips 10-trening -server localhost:8443 -token ci -skjerm trening
             knips 10-oppgaver -server localhost:8443 -token ci -skjerm hus -fane oppgaver
             knips 11-oversikt -server localhost:8443 -token ci -skjerm hus -fane oversikt
             knips 12-biler    -server localhost:8443 -token ci -skjerm hus -fane biler
