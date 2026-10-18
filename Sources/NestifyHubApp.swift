@@ -21,7 +21,9 @@ struct NestifyHubApp: App {
                 if !api.erKlar {
                     Paring(api: api)
                 } else if Testskjerm.trening {
-                    TreningModul(api: api)
+                    // Egen vert: modulen eier ingen NavigationStack, og uten
+                    // hjemskjermen over seg finnes det ingen.
+                    Treningsvert(api: api)
                 } else if Testskjerm.hus {
                     // Huset kan ikke knipses gjennom FPL-veien, og det var nettopp der
                     // en feil fikk stå: koden var riktig, men arket var ikke festet.
