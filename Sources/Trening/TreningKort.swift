@@ -286,6 +286,13 @@ struct Midjekort: View {
 /// bare en nøytral grå prikk.
 struct Vektkort: View {
     let vekt: Treningsdata.Vekt
+
+    /// 90 dager når kilden har dem. Han veier seg omtrent fire ganger i måneden,
+    /// så 30 dager gir tre–fire prikker — for lite til å lese en sone ut av.
+    private var serie: [Punkt]? {
+        if let p = vekt.siste90d, !p.isEmpty { return p }
+        return vekt.siste30d
+    }
     /// Kortet brukes to steder: på oversikten, der det kan trykkes, og øverst på
     /// vektskjermen, der det ikke kan. En vinkel på det siste ville lovet en
     /// skjerm som ikke finnes.
@@ -315,11 +322,11 @@ struct Vektkort: View {
                             .font(.system(size: 13)).foregroundStyle(Farge.dempet)
                     }
                 }
-                if let p = vekt.siste30d, p.count > 1 { graf(p) }
+                if let p = serie, p.count > 1 { graf(p) }
                 HStack(spacing: 12) {
                     // X-aksen er skjult — da MÅ tidsrommet stå, ellers vet man ikke
                     // om prikkene dekker en uke eller et år.
-                    Text("Siste 30 dager")
+                    Text(vekt.siste90d?.isEmpty == false ? "Siste 90 dager" : "Siste 30 dager")
                     if let s = Trening.tall(vekt.snitt14d) {
                         Text("Snitt 14 d: \(s) kg")
                     }

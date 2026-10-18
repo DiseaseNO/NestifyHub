@@ -209,10 +209,15 @@ struct FormSkjerm: View {
                 Chart {
                     ForEach(h) { m in
                         if let d = Trening.dato((m.mnd ?? "") + "-01"), let y = m.verdi {
+                            // Rette linjer, ikke spline. En glattet kurve finner opp
+                            // dumper og topper MELLOM målepunktene, og i en formgraf
+                            // leses de som noe som faktisk skjedde. Prikkene viser
+                            // hvor det er målt — resten er bare forbindelse.
                             LineMark(x: .value("Måned", d), y: .value("VO₂max", y))
-                                .interpolationMethod(.monotone)
                                 .foregroundStyle(Farge.aksent)
                                 .lineStyle(StrokeStyle(lineWidth: 2))
+                            PointMark(x: .value("Måned", d), y: .value("VO₂max", y))
+                                .symbolSize(26).foregroundStyle(Farge.aksent)
                         }
                     }
                     if let t = v.topp, let d = Trening.dato(t.dato), let y = t.verdi {
@@ -228,7 +233,8 @@ struct FormSkjerm: View {
                 // kurven dekker tre måneder eller tre år. Halvår gir tre–fire
                 // etiketter og et faktisk tidsrom.
                 .chartXAxis { AxisMarks(values: .stride(by: .month, count: 6)) { _ in
-                    AxisValueLabel(format: .dateTime.month(.abbreviated).year(.twoDigits)
+                    // Fire sifre: «okt. 25» leses som en dato, ikke som et år.
+                    AxisValueLabel(format: .dateTime.month(.abbreviated).year()
                         .locale(Trening.norsk))
                         .font(.system(size: 9)).foregroundStyle(Farge.dempet) } }
                 .chartYAxis { AxisMarks(position: .trailing) { _ in
@@ -484,7 +490,7 @@ struct VektSkjerm: View {
                     }
                 }
             }
-            if let m = vekt?.siste30d, !m.isEmpty {
+            if let m = vekt?.siste90d ?? vekt?.siste30d, !m.isEmpty {
                 Treningsbolk(tittel: "Målinger") {
                     // Nyeste først. Ingen pil, ingen farge: en måling er en måling,
                     // og forskjellen fra i går er støy.

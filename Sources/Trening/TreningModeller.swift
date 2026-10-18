@@ -419,6 +419,10 @@ struct Treningsdata: Decodable {
         let dagerISonen: Int?
         let siste: Maaling?
         let siste30d: [Punkt]?
+        /// Han veier seg omtrent fire ganger i måneden. 30 dager gir tre–fire
+        /// prikker, og det er for lite til å se en sone. 90 er serien vi viser
+        /// når den finnes.
+        let siste90d: [Punkt]?
 
         struct Sone: Decodable { let fra: Double?; let til: Double? }
         struct Maaling: Decodable { let kg: Double?; let dato: String? }
@@ -430,6 +434,7 @@ struct Treningsdata: Decodable {
             case iSonenSiden = "i_sonen_siden"
             case dagerISonen = "dager_i_sonen"
             case siste30d = "siste_30d"
+            case siste90d = "siste_90d"
         }
     }
 
@@ -568,11 +573,17 @@ enum Trening {
     }
 
     /// «16. okt» — kort dato til merkelapper.
+    /// «16. okt.» for i år, «3. des. 2022» ellers.
+    ///
+    /// Året sto ikke før, og rekordene — som er fra 2022 — leste som ferske. En
+    /// dato uten år er bare utvetydig innenfor året man står i.
     static func kortDato(_ iso: String?) -> String? {
         guard let d = dato(iso) else { return nil }
         let f = DateFormatter()
-        f.locale = Locale(identifier: "nb_NO")
-        f.dateFormat = "d. MMM"
+        f.locale = norsk
+        let k = Calendar.current
+        f.dateFormat = k.component(.year, from: d) == k.component(.year, from: Date())
+            ? "d. MMM" : "d. MMM yyyy"
         return f.string(from: d)
     }
 }

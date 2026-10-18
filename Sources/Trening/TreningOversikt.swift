@@ -180,8 +180,12 @@ private struct Formkort: View {
                                  etikett: "Formalder")
                     }
                     if let r = form.readiness?.score {
-                        Tallrute(verdi: Trening.tall(r, desimaler: 0) ?? "–",
-                                 etikett: form.readiness?.niva ?? "Readiness")
+                        // Nivået sto ALENE som etikett, så «68 / God» ikke sa hva
+                        // tallet var. Nivået hører til verdien, ikke til navnet på
+                        // målingen — og det brukes ordrett fra kilden.
+                        Tallrute(verdi: (Trening.tall(r, desimaler: 0) ?? "–")
+                                     + (form.readiness?.niva.map { " · \($0)" } ?? ""),
+                                 etikett: "Readiness")
                     }
                 }
             }
