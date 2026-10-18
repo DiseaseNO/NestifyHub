@@ -106,7 +106,12 @@ struct EnergiSkjerm: View {
         Energibolk(tittel: "Forbrenning") {
             HStack(spacing: 0) {
                 if let s = u.iDagSaLangt?.total {
-                    Tallrute(verdi: Energi.kcal(s) ?? "–", etikett: "Så langt i dag")
+                    // Klokkeslettet MÅ stå her. Uten det leses «1 240» mot «snitt 7 d
+                    // 2 320» som et stort etterslep — men dagen er ikke over. Tallet
+                    // er et gulv, og etiketten må si hvor langt det rekker.
+                    Tallrute(verdi: Energi.kcal(s) ?? "–",
+                             etikett: Trening.klokke(u.iDagSaLangt?.hentet)
+                                 .map { "Så langt, kl. \($0)" } ?? "Så langt i dag")
                 }
                 if let s = u.snitt7d { Tallrute(verdi: Energi.kcal(s) ?? "–", etikett: "Snitt 7 d") }
                 if let s = u.snitt30d { Tallrute(verdi: Energi.kcal(s) ?? "–", etikett: "Snitt 30 d") }

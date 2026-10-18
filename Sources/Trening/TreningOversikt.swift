@@ -18,6 +18,11 @@ struct TreningOversikt: View {
     let lager: TreningLager
 
     var body: some View {
+        // ScrollViewReader er her UTELUKKENDE for CI. Oversikten er lengre enn
+        // skjermen, og simulatoren knipser bare det som er synlig — alt fra Løping
+        // og nedover gikk aldri til bruker uten at noen hadde sett det rendret.
+        // Det er nøyaktig den feilen skjermbilde-jobben finnes for å fange.
+        ScrollViewReader { lenke in
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 if let d = lager.data {
@@ -26,10 +31,12 @@ struct TreningOversikt: View {
                     if let u = d.uke {
                         NavigationLink(value: Treningsmål.uke) { Ukekort(uke: u) }
                             .buttonStyle(Trykkflate())
+                            .id(Treningsmål.uke)
                     }
                     if let f = d.form {
                         NavigationLink(value: Treningsmål.form) { Formkort(form: f) }
                             .buttonStyle(Trykkflate())
+                            .id(Treningsmål.form)
                     }
 
                     // Det Thomas savnet mest. Derfor høyt oppe, og uten å måtte trykkes.
@@ -39,24 +46,29 @@ struct TreningOversikt: View {
                     if let l = d.lop {
                         NavigationLink(value: Treningsmål.lop) { Lopkort(lop: l, uke: d.uke) }
                             .buttonStyle(Trykkflate())
+                            .id(Treningsmål.lop)
                     }
                     if let s = d.styrke {
                         NavigationLink(value: Treningsmål.styrke) { Styrkekort(styrke: s, uke: d.uke) }
                             .buttonStyle(Trykkflate())
+                            .id(Treningsmål.styrke)
                     }
                     // Energi står etter Løping og Styrke, og før vekt: forbruk er
                     // noe man gjør, vekt er bare en følge av det.
                     if let e = d.energi, e.ut != nil || e.inn != nil {
                         NavigationLink(value: Treningsmål.energi) { Energikort(energi: e) }
                             .buttonStyle(Trykkflate())
+                            .id(Treningsmål.energi)
                     }
                     if let v = d.vekt {
                         NavigationLink(value: Treningsmål.vekt) { Vektkort(vekt: v) }
                             .buttonStyle(Trykkflate())
+                            .id(Treningsmål.vekt)
                     }
                     if let f = d.form, f.sovn != nil || f.hrv != nil || f.hvilepuls != nil {
                         NavigationLink(value: Treningsmål.restitusjon) { Restitusjonskort(form: f) }
                             .buttonStyle(Trykkflate())
+                            .id(Treningsmål.restitusjon)
                     }
 
                     if let r = d.rekorder, !r.isEmpty { Rekordkort(rekorder: r) }
@@ -78,6 +90,13 @@ struct TreningOversikt: View {
         .navigationTitle("Trening")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Farge.flate, for: .navigationBar)
+        // Må vente til dataene finnes: et kort som ikke er bygget ennå, har
+        // ingen id å rulle til, og rullingen blir stående og gjøre ingenting.
+        .onChange(of: lager.data != nil, initial: true) { _, finnes in
+            guard finnes, let m = Testskjerm.treningsrull else { return }
+            lenke.scrollTo(m, anchor: .top)
+        }
+        }
     }
 
     /// Ferskhet, diskret. Gammelt er grått — ikke rødt, og ikke en feilmelding.

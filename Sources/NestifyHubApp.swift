@@ -100,13 +100,32 @@ enum Testskjerm {
         #endif
     }
 
+    /// `-rull <kort>` ruller oversikten ned til ett kort før skjermbildet tas.
+    /// Oversikten er lengre enn skjermen, og uten dette ble bare de to øverste
+    /// kortene noen gang sett rendret.
+    static var treningsrull: Treningsmål? {
+        #if DEBUG
+        mål(UserDefaults.standard.string(forKey: "rull"))
+        #else
+        nil
+        #endif
+    }
+
     /// Åpner en detaljskjerm i Trening ved oppstart,
     /// `-skjerm trening -trening form`. Skjermene ligger bak et trykk, og uten dette
     /// ville mesteparten av modulen aldri blitt knipset — og en skjerm man ikke har
     /// sett rendret, er ikke verifisert.
     static var treningsmål: Treningsmål? {
         #if DEBUG
-        switch UserDefaults.standard.string(forKey: "trening") {
+        mål(UserDefaults.standard.string(forKey: "trening"))
+        #else
+        nil
+        #endif
+    }
+
+    #if DEBUG
+    private static func mål(_ navn: String?) -> Treningsmål? {
+        switch navn {
         case "uke":         .uke
         case "form":        .form
         case "lop":         .lop
@@ -117,10 +136,8 @@ enum Testskjerm {
         case "reisen":      .reisen
         default:            nil
         }
-        #else
-        nil
-        #endif
     }
+    #endif
 
     /// Åpner Trening direkte, `-skjerm trening`. Modulen har ingen faner og ingen
     /// knapper, så ett skjermbilde dekker hele den — bortsett fra Reisen, som ligger
