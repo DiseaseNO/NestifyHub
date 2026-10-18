@@ -60,19 +60,19 @@ struct Reiseskjerm: View {
                         LineMark(x: .value("Dato", d), y: .value("kg", v))
                             .interpolationMethod(.monotone)
                             .foregroundStyle(Farge.aksent)
-                            .lineStyle(StrokeStyle(lineWidth: 1.5))
+                            .lineStyle(StrokeStyle(lineWidth: 2))
                     }
                 }
                 ForEach(reisen.merker ?? []) { m in
                     if let d = Trening.dato(m.dato), let v = m.kg {
                         PointMark(x: .value("Dato", d), y: .value("kg", v))
-                            .symbolSize(60)
-                            .foregroundStyle(m.erAnslag ? Farge.svak : Farge.tekst)
+                            .symbolSize(90)
+                            .foregroundStyle(m.erAnslag ? Farge.dempet : Farge.tekst)
                         // Anslaget stiples, så det ikke leses som en måling.
                         if m.erAnslag {
                             RuleMark(y: .value("kg", v))
                                 .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                                .foregroundStyle(Farge.svak.opacity(0.5))
+                                .foregroundStyle(Farge.dempet.opacity(0.6))
                         }
                     }
                 }
@@ -81,12 +81,12 @@ struct Reiseskjerm: View {
             .chartXAxis {
                 AxisMarks { _ in
                     AxisValueLabel(format: .dateTime.year())
-                        .font(.system(size: 9)).foregroundStyle(Farge.svak)
+                        .font(.system(size: 9)).foregroundStyle(Farge.dempet)
                 }
             }
             .chartYAxis {
                 AxisMarks(position: .trailing) { _ in
-                    AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.svak)
+                    AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.dempet)
                 }
             }
             .frame(height: 220)
@@ -107,13 +107,13 @@ struct Reiseskjerm: View {
                                 if m.erAnslag {
                                     Text("anslag")
                                         .font(.system(size: 9, weight: .semibold))
-                                        .foregroundStyle(Farge.svak)
+                                        .foregroundStyle(Farge.dempet)
                                         .padding(.horizontal, 5).padding(.vertical, 1)
                                         .background { Capsule().strokeBorder(Farge.strek, lineWidth: 1) }
                                 }
                             }
                             if let n = m.merknad, !n.isEmpty {
-                                Text(n).font(.system(size: 11)).foregroundStyle(Farge.svak)
+                                Text(n).font(.system(size: 11)).foregroundStyle(Farge.dempet)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -125,7 +125,7 @@ struct Reiseskjerm: View {
                                     .foregroundStyle(Farge.tekst)
                             }
                             if let d = Trening.kortDato(m.dato) {
-                                Text(d).font(.system(size: 10)).foregroundStyle(Farge.svak)
+                                Text(d).font(.system(size: 10)).foregroundStyle(Farge.dempet)
                             }
                         }
                     }

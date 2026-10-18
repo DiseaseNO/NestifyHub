@@ -87,7 +87,7 @@ struct TreningModul: View {
         if let t = Trening.klokke(lager.generert) {
             Text(lager.erGammel ? "Data fra kl. \(t)" : "Oppdatert \(t)")
                 .font(.system(size: 11))
-                .foregroundStyle(Farge.svak)
+                .foregroundStyle(Farge.dempet)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 4)
         }
@@ -116,7 +116,7 @@ private struct Ukekort: View {
                 if let s = Trening.tall(uke.snitt4Uker, desimaler: 1) {
                     Text("Snitt 4 uker: \(s) økter")
                         .font(.system(size: 11))
-                        .foregroundStyle(Farge.svak)
+                        .foregroundStyle(Farge.dempet)
                 }
             }
             .padding(16)
@@ -126,7 +126,7 @@ private struct Ukekort: View {
     private var streak: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("\(uke.streakUker ?? 0)")
-                .font(.system(size: 44, weight: .light).monospacedDigit())
+                .font(.system(size: 44, weight: .light))
                 .foregroundStyle(uke.godkjent == true ? Farge.ok : Farge.tekst)
                 .contentTransition(.numericText())
             Text((uke.streakUker ?? 0) == 1 ? "uke på rad" : "uker på rad")
@@ -158,10 +158,14 @@ private struct Ukekort: View {
                 let erNå = uketall == 0
                 let fylt = erNå ? (uke.godkjent == true) : uketall <= streak
                 Circle()
-                    .strokeBorder(fylt ? Color.clear : Farge.strek, lineWidth: 1.5)
+                    .strokeBorder(fylt ? Color.clear : Farge.strek,
+                                  lineWidth: erNå ? 1.5 : 1)
                     .background(Circle().fill(fylt ? Farge.ok : Color.clear))
                     .frame(width: 9, height: 9)
-                    .opacity(erNå && !fylt ? 1 : (fylt ? 1 : 0.6))
+                    // Inneværende uke er en tydelig åpen ring — den er «ennå ikke».
+                    // Eldre uker utenfor streaken dempes: vi VET ikke at de gikk
+                    // galt, vi vet bare at de ikke er med i denne streaken.
+                    .opacity(fylt ? 1 : (erNå ? 1 : 0.4))
             }
         }
     }
@@ -215,7 +219,7 @@ private struct Brikke: View {
                     .font(.system(size: 12, weight: .semibold).monospacedDigit())
             }
         }
-        .foregroundStyle(oppnådd ? Farge.ok : Farge.svak)
+        .foregroundStyle(oppnådd ? Farge.ok : Farge.dempet)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background {
@@ -249,7 +253,7 @@ private struct Styrkekort: View {
                         }
                         Spacer()
                         if let d = Trening.kortDato(r.dato) {
-                            Text(d).font(.system(size: 11)).foregroundStyle(Farge.svak)
+                            Text(d).font(.system(size: 11)).foregroundStyle(Farge.dempet)
                         }
                     }
                 }
@@ -323,13 +327,16 @@ private struct Vektkort: View {
                 Seksjonstittel(tekst: "Vekt")
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("\(vekt.dagerISonen ?? 0)")
-                        .font(.system(size: 34, weight: .light).monospacedDigit())
+                        .font(.system(size: 34, weight: .light))
                         .foregroundStyle(Farge.ok)
                     Text("dager i sonen")
                         .font(.system(size: 13)).foregroundStyle(Farge.dempet)
                 }
                 if let p = vekt.siste30d, p.count > 1 { graf(p) }
                 HStack(spacing: 12) {
+                    // X-aksen er skjult — da MÅ tidsrommet stå, ellers vet man ikke
+                    // om prikkene dekker en uke eller et år.
+                    Text("Siste 30 dager")
                     if let s = Trening.tall(vekt.snitt14d) {
                         Text("Snitt 14 d: \(s) kg")
                     }
@@ -338,7 +345,7 @@ private struct Vektkort: View {
                     }
                 }
                 .font(.system(size: 11))
-                .foregroundStyle(Farge.svak)
+                .foregroundStyle(Farge.dempet)
             }
             .padding(16)
         }
@@ -358,7 +365,7 @@ private struct Vektkort: View {
             ForEach(punkter) { p in
                 if let d = Trening.dato(p.dato), let v = p.verdi {
                     PointMark(x: .value("Dato", d), y: .value("kg", v))
-                        .symbolSize(28)
+                        .symbolSize(55)
                         // Utenfor sonen = nøytral grå. Ikke en advarsel.
                         .foregroundStyle(iSonen(v) ? Farge.ok : Farge.dempet)
                 }
@@ -367,7 +374,7 @@ private struct Vektkort: View {
         .chartXAxis(.hidden)
         .chartYAxis {
             AxisMarks(position: .trailing) { _ in
-                AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.svak)
+                AxisValueLabel().font(.system(size: 9)).foregroundStyle(Farge.dempet)
             }
         }
         .chartYScale(domain: .automatic(includesZero: false))
@@ -387,48 +394,68 @@ private struct Proteinkort: View {
 
     var body: some View {
         Flate {
-            HStack(spacing: 16) {
-                if let g = protein.gram { ring(g) }
-                VStack(alignment: .leading, spacing: 3) {
-                    Seksjonstittel(tekst: "Protein i dag")
+            VStack(alignment: .leading, spacing: 10) {
+                Seksjonstittel(tekst: "Protein i dag")
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     if let g = Trening.tall(protein.gram, desimaler: 0) {
-                        Text("\(g) g").font(.system(size: 20, weight: .medium).monospacedDigit())
+                        Text(g).font(.system(size: 28, weight: .light))
                             .foregroundStyle(Farge.tekst)
+                        Text("g").font(.system(size: 13)).foregroundStyle(Farge.dempet)
                     }
-                    if let f = Trening.tall(protein.mal?.fra, desimaler: 0),
-                       let t = Trening.tall(protein.mal?.til, desimaler: 0) {
-                        Text("Mål \(f)–\(t) g").font(.system(size: 11)).foregroundStyle(Farge.dempet)
-                    }
+                    if nådd { Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Farge.ok) }
+                    Spacer()
                     if let s = Trening.tall(protein.snitt7d, desimaler: 0) {
-                        Text("Snitt 7 d: \(s) g").font(.system(size: 11)).foregroundStyle(Farge.svak)
+                        Text("Snitt 7 d: \(s) g").font(.system(size: 11)).foregroundStyle(Farge.dempet)
                     }
                 }
-                Spacer()
+                if protein.gram != nil { meter }
             }
             .padding(16)
         }
     }
 
-    /// Ringen fylles mot nedre kant av målintervallet. Over øvre kant er også bra — det
-    /// finnes ingen tilstand her som skal se ut som en advarsel.
-    private func ring(_ gram: Double) -> some View {
-        let mål = protein.mal?.fra ?? 0
-        let andel = mål > 0 ? min(1, gram / mål) : 0
-        let nådd = mål > 0 && gram >= mål
-        return ZStack {
-            Circle().stroke(Farge.strek, lineWidth: 6)
-            Circle()
-                .trim(from: 0, to: andel)
-                .stroke(nådd ? Farge.ok : Farge.dempet,
-                        style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            if nådd {
-                Image(systemName: "checkmark").font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Farge.ok)
+    private var nådd: Bool {
+        guard let g = protein.gram, let fra = protein.mal?.fra else { return false }
+        return g >= fra
+    }
+
+    /// Måler, ikke ring.
+    ///
+    /// Målet er et **intervall** (f.eks. 140–155 g), ikke én terskel — og det kan en
+    /// ring ikke vise. På en lineær bane kan intervallet tegnes som et felt, så det
+    /// er synlig både hvor man er og hvor stort rommet for «bra nok» er.
+    ///
+    /// Banen er en lysere tone av samme farge som fyllet, ikke nøytral grå: da leses
+    /// tilstanden langs hele bredden, i stedet for at bare den fylte delen betyr noe.
+    private var meter: some View {
+        let fra = protein.mal?.fra ?? 0
+        let til = protein.mal?.til ?? fra
+        // Skalaen går litt forbi øvre mål, så «over målet» har et sted å vises.
+        let maks = max(til * 1.2, (protein.gram ?? 0) * 1.05, 1)
+        return VStack(alignment: .leading, spacing: 5) {
+            GeometryReader { g in
+                let b = g.size.width
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Farge.ok.opacity(0.10))
+                    if til > fra {
+                        // Målintervallet. Et felt, ikke en strek — «bra nok» er et rom.
+                        Capsule().fill(Farge.ok.opacity(0.22))
+                            .frame(width: b * CGFloat((til - fra) / maks))
+                            .offset(x: b * CGFloat(fra / maks))
+                    }
+                    Capsule()
+                        .fill(nådd ? Farge.ok : Farge.ok.opacity(0.55))
+                        .frame(width: b * CGFloat(min(1, (protein.gram ?? 0) / maks)))
+                }
+            }
+            .frame(height: 8)
+            if let f = Trening.tall(fra, desimaler: 0), let t = Trening.tall(til, desimaler: 0) {
+                Text("Mål \(f)–\(t) g")
+                    .font(.system(size: 11)).foregroundStyle(Farge.dempet)
             }
         }
-        .frame(width: 52, height: 52)
-        .animation(.smooth(duration: 0.4), value: andel)
+        .animation(.smooth(duration: 0.4), value: protein.gram)
     }
 }
 
@@ -449,7 +476,7 @@ private struct Kontekstlinje: View {
             if !deler.isEmpty {
                 Text(deler.joined(separator: "  ·  "))
                     .font(.system(size: 11))
-                    .foregroundStyle(Farge.svak)
+                    .foregroundStyle(Farge.dempet)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 2)
             }
