@@ -32,7 +32,14 @@ private struct Treningsbolk<Innhold: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             Seksjonstittel(tekst: tittel).padding(.leading, 4)
-            Flate { VStack(alignment: .leading, spacing: 11) { innhold() }.padding(15) }
+            Flate {
+                VStack(alignment: .leading, spacing: 11) { innhold() }
+                    // Uten dette krymper kortet til innholdets bredde, og en bolk med
+                    // bare tekst blir smalere enn en med rader. Da ser skjermen ut som
+                    // den er satt sammen av biter fra ulike steder.
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(15)
+            }
         }
     }
 }
