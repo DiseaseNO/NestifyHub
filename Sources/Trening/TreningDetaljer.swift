@@ -25,7 +25,7 @@ private struct Detalj<Innhold: View>: View {
 }
 
 /// Et avsnitt inne i en detaljskjerm.
-private struct Bolk<Innhold: View>: View {
+private struct Treningsbolk<Innhold: View>: View {
     let tittel: String
     @ViewBuilder var innhold: () -> Innhold
 
@@ -104,7 +104,7 @@ struct UkeSkjerm: View {
             if let u = uke { Ukekort(uke: u) }
             let ukas = okter.filter { innenfor($0.dato) }
             if !ukas.isEmpty {
-                Bolk(tittel: "Øktene denne uka") {
+                Treningsbolk(tittel: "Øktene denne uka") {
                     ForEach(ukas) { ø in
                         NavigationLink(value: Treningsmål.okt(ø.id ?? "")) { Øktrad(økt: ø) }
                             .buttonStyle(Trykkflate())
@@ -112,7 +112,7 @@ struct UkeSkjerm: View {
                 }
             }
             if let h = uke?.historikk, !h.isEmpty {
-                Bolk(tittel: "8 uker tilbake") {
+                Treningsbolk(tittel: "8 uker tilbake") {
                     // Eldste først, som kilden sender dem.
                     ForEach(Array(h.enumerated()), id: \.offset) { i, godkjent in
                         Rad(venstre: "For \(h.count - i) uker siden",
@@ -140,7 +140,7 @@ struct FormSkjerm: View {
     var body: some View {
         Detalj(tittel: "Form") {
             if let t = form?.treningsstatus {
-                Bolk(tittel: "Treningsstatus") {
+                Treningsbolk(tittel: "Treningsstatus") {
                     Text(t.tekst ?? "").font(.system(size: 22, weight: .light))
                         .foregroundStyle(Farge.tekst)
                     if let f = t.forklaring {
@@ -151,7 +151,7 @@ struct FormSkjerm: View {
             }
             if let v = form?.vo2max { vo2(v) }
             if let f = form?.fitnessAlder, let verdi = f.verdi {
-                Bolk(tittel: "Formalder") {
+                Treningsbolk(tittel: "Formalder") {
                     Rad(venstre: "Nå", høyre: (Trening.tall(verdi) ?? "–") + " år", farge: Farge.ok)
                     if let a = f.alder {
                         Rad(venstre: "Faktisk alder", høyre: (Trening.tall(a, desimaler: 0) ?? "–") + " år")
@@ -163,7 +163,7 @@ struct FormSkjerm: View {
                 }
             }
             if let b = form?.belastning {
-                Bolk(tittel: "Belastning") {
+                Treningsbolk(tittel: "Belastning") {
                     if let v = b.vurdering {
                         Text(v).font(.system(size: 13)).foregroundStyle(Farge.tekst)
                             .fixedSize(horizontal: false, vertical: true)
@@ -177,7 +177,7 @@ struct FormSkjerm: View {
                 }
             }
             if let t = form?.terskel, t.tempo != nil || t.puls != nil {
-                Bolk(tittel: "Terskel") {
+                Treningsbolk(tittel: "Terskel") {
                     if let p = t.tempo { Rad(venstre: "Tempo", høyre: p + " /km") }
                     if let p = t.puls { Rad(venstre: "Puls", høyre: (Trening.tall(p, desimaler: 0) ?? "–") + " slag") }
                 }
@@ -186,7 +186,7 @@ struct FormSkjerm: View {
     }
 
     @ViewBuilder private func vo2(_ v: Treningsdata.Form.Vo2max) -> some View {
-        Bolk(tittel: "VO₂max") {
+        Treningsbolk(tittel: "VO₂max") {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(Trening.tall(v.verdi) ?? "–")
                     .font(.system(size: 30, weight: .light)).foregroundStyle(Farge.tekst)
@@ -240,7 +240,7 @@ struct LopSkjerm: View {
     var body: some View {
         Detalj(tittel: "Løping") {
             if let u = lop?.uker, !u.isEmpty {
-                Bolk(tittel: "12 uker") {
+                Treningsbolk(tittel: "12 uker") {
                     Chart(u) { uke in
                         if let d = Trening.dato(uke.start) {
                             BarMark(x: .value("Uke", d, unit: .weekOfYear),
@@ -262,7 +262,7 @@ struct LopSkjerm: View {
                 }
             }
             if let p = lop?.prediksjon, !p.isEmpty {
-                Bolk(tittel: "Anslåtte tider") {
+                Treningsbolk(tittel: "Anslåtte tider") {
                     // Fast rekkefølge: JSON-objekter har ingen garantert orden, og en
                     // liste som bytter rekkefølge mellom hentinger er uleselig.
                     ForEach(["5 km", "10 km", "Halvmaraton", "Maraton"], id: \.self) { d in
@@ -275,7 +275,7 @@ struct LopSkjerm: View {
                 }
             }
             if let r = lop?.rekorder, !r.isEmpty {
-                Bolk(tittel: "Personlige rekorder") {
+                Treningsbolk(tittel: "Personlige rekorder") {
                     ForEach(r) { rek in
                         Rad(venstre: rek.distanse ?? (Trening.tall(rek.km).map { "\($0) km" } ?? "—"),
                             høyre: rek.tid ?? "—",
@@ -284,14 +284,14 @@ struct LopSkjerm: View {
                 }
             }
             if let l = lop?.lengste30d {
-                Bolk(tittel: "Lengste siste 30 dager") {
+                Treningsbolk(tittel: "Lengste siste 30 dager") {
                     NavigationLink(value: Treningsmål.okt(l.id ?? "")) { Øktrad(økt: l) }
                         .buttonStyle(Trykkflate())
                 }
             }
             let turer = okter.filter { $0.erLop }
             if !turer.isEmpty {
-                Bolk(tittel: "Løpeturer") {
+                Treningsbolk(tittel: "Løpeturer") {
                     ForEach(turer.prefix(20)) { ø in
                         NavigationLink(value: Treningsmål.okt(ø.id ?? "")) { Øktrad(økt: ø) }
                             .buttonStyle(Trykkflate())
@@ -313,7 +313,7 @@ struct StyrkeSkjerm: View {
     var body: some View {
         Detalj(tittel: "Styrke") {
             if let u = styrke?.uker, !u.isEmpty {
-                Bolk(tittel: "12 uker") {
+                Treningsbolk(tittel: "12 uker") {
                     Chart {
                         ForEach(u) { uke in
                             if let d = Trening.dato(uke.start) {
@@ -344,19 +344,19 @@ struct StyrkeSkjerm: View {
                 }
             }
             if !rekorder.isEmpty {
-                Bolk(tittel: "Rekorder") { Rekordkort(rekorder: rekorder) }
+                Treningsbolk(tittel: "Rekorder") { Rekordkort(rekorder: rekorder) }
             } else if let r = rad.first(where: { $0.kategori == "styrke" }) {
                 // Ingen rekorder er ikke en feil — klokka registrerer ikke øvelsene.
                 // Forklaringen finnes allerede ferdig formulert i rådene; vi gjenbruker
                 // den framfor å skrive vår egen versjon av samme beskjed.
-                Bolk(tittel: "Hvorfor ingen rekorder?") {
+                Treningsbolk(tittel: "Hvorfor ingen rekorder?") {
                     Text(r.tekst ?? "").font(.system(size: 13)).foregroundStyle(Farge.tekst)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             let økter = okter.filter { $0.erStyrke }
             if !økter.isEmpty {
-                Bolk(tittel: "Styrkeøkter") {
+                Treningsbolk(tittel: "Styrkeøkter") {
                     ForEach(økter.prefix(20)) { ø in
                         NavigationLink(value: Treningsmål.okt(ø.id ?? "")) { Øktrad(økt: ø) }
                             .buttonStyle(Trykkflate())
@@ -377,7 +377,7 @@ struct RestitusjonSkjerm: View {
             if let s = form?.sovn { sovn(s) }
             if let h = form?.hrv { hrv(h) }
             if let p = form?.hvilepuls, p.snitt7d != nil || p.snitt90d != nil {
-                Bolk(tittel: "Hvilepuls") {
+                Treningsbolk(tittel: "Hvilepuls") {
                     if let v = p.snitt7d { Rad(venstre: "Siste 7 dager", høyre: (Trening.tall(v, desimaler: 0) ?? "–") + " slag") }
                     if let v = p.snitt90d { Rad(venstre: "Siste 90 dager", høyre: (Trening.tall(v, desimaler: 0) ?? "–") + " slag") }
                 }
@@ -386,7 +386,7 @@ struct RestitusjonSkjerm: View {
     }
 
     @ViewBuilder private func sovn(_ s: Treningsdata.Form.Sovn) -> some View {
-        Bolk(tittel: "Søvn") {
+        Treningsbolk(tittel: "Søvn") {
             HStack(spacing: 0) {
                 if let v = s.snitt7d { Tallrute(verdi: (Trening.tall(v) ?? "–") + " t", etikett: "Snitt 7 d") }
                 if let v = s.snitt30d { Tallrute(verdi: (Trening.tall(v) ?? "–") + " t", etikett: "Snitt 30 d") }
@@ -416,7 +416,7 @@ struct RestitusjonSkjerm: View {
     }
 
     @ViewBuilder private func hrv(_ h: Treningsdata.Form.Hrv) -> some View {
-        Bolk(tittel: "HRV") {
+        Treningsbolk(tittel: "HRV") {
             HStack(spacing: 0) {
                 if let v = h.snitt7d { Tallrute(verdi: Trening.tall(v, desimaler: 0) ?? "–", etikett: "Snitt 7 d") }
                 if let v = h.snitt30d { Tallrute(verdi: Trening.tall(v, desimaler: 0) ?? "–", etikett: "Snitt 30 d") }
@@ -477,7 +477,7 @@ struct ØktSkjerm: View {
     var body: some View {
         Detalj(tittel: økt?.typeTekst ?? "Økt") {
             if let ø = økt {
-                Bolk(tittel: "Økten") {
+                Treningsbolk(tittel: "Økten") {
                     if let n = ø.navn {
                         Text(n).font(.system(size: 18, weight: .light)).foregroundStyle(Farge.tekst)
                     }
@@ -493,7 +493,7 @@ struct ØktSkjerm: View {
                     if let t = ø.tempo, ø.km ?? 0 > 0 { Rad(venstre: "Tempo", høyre: "\(t) /km") }
                 }
                 if ø.snittpuls != nil || ø.makspuls != nil || ø.kcal != nil || ø.hoydemeter != nil {
-                    Bolk(tittel: "Underveis") {
+                    Treningsbolk(tittel: "Underveis") {
                         if let p = ø.snittpuls { Rad(venstre: "Snittpuls", høyre: (Trening.tall(p, desimaler: 0) ?? "–") + " slag") }
                         if let p = ø.makspuls { Rad(venstre: "Makspuls", høyre: (Trening.tall(p, desimaler: 0) ?? "–") + " slag") }
                         if let k = ø.kcal { Rad(venstre: "Forbrenning", høyre: (Trening.tall(k, desimaler: 0) ?? "–") + " kcal") }
@@ -501,7 +501,7 @@ struct ØktSkjerm: View {
                     }
                 }
                 if ø.aerobTe != nil || ø.anaerobTe != nil || ø.treningslast != nil {
-                    Bolk(tittel: "Effekt") {
+                    Treningsbolk(tittel: "Effekt") {
                         if let a = ø.aerobTe, a > 0 {
                             Rad(venstre: "Aerob", høyre: Trening.tall(a) ?? "–",
                                 under: "Hvor mye økten bygget utholdenhet")
