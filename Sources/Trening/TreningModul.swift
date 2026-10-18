@@ -127,7 +127,11 @@ private struct Ukekort: View {
     var body: some View {
         Flate(aktiv: uke.godkjent == true) {
             VStack(alignment: .leading, spacing: 14) {
-                if let s = uke.streakUker { streak(s) } else { uketittel }
+                // Streak 0 får IKKE være hovedtallet. «0 uker på rad» stort er en
+                // fiaskomelding satt med display-skrift. Da viser vi uka i stedet,
+                // og lar prikkene vise historikken og `mangler` si hva som skal til.
+                // Streaken kommer tilbake som helt så snart den er på minst én.
+                if let s = uke.streakUker, s > 0 { streak(s) } else { uketittel }
                 if let h = uke.historikk { prikker(h) }
                 brikker
                 if let g = uke.okter?.gjort, let m = uke.okter?.mal { fremdrift(g, m) }

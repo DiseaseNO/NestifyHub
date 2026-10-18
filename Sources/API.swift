@@ -132,6 +132,22 @@ final class API {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
+    /// Forespørsel for en hendelsesstrøm (SSE).
+    ///
+    /// Egen fordi den **ikke skal ha timeout**: en strøm som er stille i et minutt er
+    /// ikke en feilet forespørsel, den venter bare på at noe skjer. De vanlige kallene
+    /// har 30 sekunder, og med den ville strømmen blitt revet hvert halve minutt.
+    func strømForespørsel(_ sti: String) -> URLRequest? {
+        guard let token, let u = adresse(sti) else { return nil }
+        var rq = URLRequest(url: u)
+        rq.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        rq.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        // Mellomledd som komprimerer kan samle opp en strøm i bufferet sitt.
+        rq.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+        rq.timeoutInterval = .infinity
+        return rq
+    }
+
     private func kall<T: Decodable>(_ type: T.Type, _ sti: String, _ q: [String: String], metode: String) async throws -> T {
         guard let token, let u = adresse(sti, q) else { throw APIFeil.ingenServer }
         var rq = URLRequest(url: u)
