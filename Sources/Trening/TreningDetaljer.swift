@@ -113,7 +113,7 @@ struct UkeSkjerm: View {
             if !ukas.isEmpty {
                 Treningsbolk(tittel: "Øktene denne uka") {
                     ForEach(ukas) { ø in
-                        NavigationLink(value: Treningsmål.okt(ø.id ?? "")) { Øktrad(økt: ø) }
+                        NavigationLink { ØktSkjerm(økt: ø) } label: { Øktrad(økt: ø) }
                             .buttonStyle(Trykkflate())
                     }
                 }
@@ -306,7 +306,7 @@ struct LopSkjerm: View {
             }
             if let l = lop?.lengste30d {
                 Treningsbolk(tittel: "Lengste siste 30 dager") {
-                    NavigationLink(value: Treningsmål.okt(l.id ?? "")) { Øktrad(økt: l) }
+                    NavigationLink { ØktSkjerm(økt: l) } label: { Øktrad(økt: l) }
                         .buttonStyle(Trykkflate())
                 }
             }
@@ -314,7 +314,7 @@ struct LopSkjerm: View {
             if !turer.isEmpty {
                 Treningsbolk(tittel: "Løpeturer") {
                     ForEach(turer.prefix(20)) { ø in
-                        NavigationLink(value: Treningsmål.okt(ø.id ?? "")) { Øktrad(økt: ø) }
+                        NavigationLink { ØktSkjerm(økt: ø) } label: { Øktrad(økt: ø) }
                             .buttonStyle(Trykkflate())
                     }
                 }
@@ -379,7 +379,7 @@ struct StyrkeSkjerm: View {
             if !økter.isEmpty {
                 Treningsbolk(tittel: "Styrkeøkter") {
                     ForEach(økter.prefix(20)) { ø in
-                        NavigationLink(value: Treningsmål.okt(ø.id ?? "")) { Øktrad(økt: ø) }
+                        NavigationLink { ØktSkjerm(økt: ø) } label: { Øktrad(økt: ø) }
                             .buttonStyle(Trykkflate())
                     }
                 }
@@ -501,7 +501,9 @@ struct VektSkjerm: View {
                 }
             }
             if let r = reisen, let p = r.punkter, p.count > 1 {
-                NavigationLink(value: Treningsmål.reisen) {
+                NavigationLink {
+                    Reiseskjerm(reisen: r, vekt: vekt)
+                } label: {
                     Flate {
                         HStack {
                             Text("Se hele reisen").font(.system(size: 15, weight: .medium))

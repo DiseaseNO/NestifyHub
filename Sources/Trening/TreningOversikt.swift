@@ -29,14 +29,15 @@ struct TreningOversikt: View {
                     if let i = d.iDag, let f = i.forslag, !f.isEmpty { IDagBanner(iDag: i) }
 
                     if let u = d.uke {
-                        NavigationLink(value: Treningsmål.uke) { Ukekort(uke: u) }
+                        NavigationLink { UkeSkjerm(uke: u, okter: d.okter ?? []) }
+                            label: { Ukekort(uke: u) }
                             .buttonStyle(Trykkflate())
-                            .id(Treningsmål.uke)
+                            .id(Treningsmål.uke.anker)
                     }
                     if let f = d.form {
-                        NavigationLink(value: Treningsmål.form) { Formkort(form: f) }
+                        NavigationLink { FormSkjerm(form: f) } label: { Formkort(form: f) }
                             .buttonStyle(Trykkflate())
-                            .id(Treningsmål.form)
+                            .id(Treningsmål.form.anker)
                     }
 
                     // Det Thomas savnet mest. Derfor høyt oppe, og uten å måtte trykkes.
@@ -44,31 +45,36 @@ struct TreningOversikt: View {
                     if let f = d.fremgang, !f.isEmpty { Fremgangskort(fremgang: f) }
 
                     if let l = d.lop {
-                        NavigationLink(value: Treningsmål.lop) { Lopkort(lop: l, uke: d.uke) }
+                        NavigationLink { LopSkjerm(lop: l, okter: d.okter ?? []) }
+                            label: { Lopkort(lop: l, uke: d.uke) }
                             .buttonStyle(Trykkflate())
-                            .id(Treningsmål.lop)
+                            .id(Treningsmål.lop.anker)
                     }
                     if let s = d.styrke {
-                        NavigationLink(value: Treningsmål.styrke) { Styrkekort(styrke: s, uke: d.uke) }
+                        NavigationLink { StyrkeSkjerm(styrke: s, rad: d.rad ?? [],
+                                                          rekorder: d.rekorder ?? [],
+                                                          okter: d.okter ?? []) }
+                            label: { Styrkekort(styrke: s, uke: d.uke) }
                             .buttonStyle(Trykkflate())
-                            .id(Treningsmål.styrke)
+                            .id(Treningsmål.styrke.anker)
                     }
                     // Energi står etter Løping og Styrke, og før vekt: forbruk er
                     // noe man gjør, vekt er bare en følge av det.
                     if let e = d.energi, e.ut != nil || e.inn != nil {
-                        NavigationLink(value: Treningsmål.energi) { Energikort(energi: e) }
+                        NavigationLink { EnergiSkjerm(energi: e) } label: { Energikort(energi: e) }
                             .buttonStyle(Trykkflate())
-                            .id(Treningsmål.energi)
+                            .id(Treningsmål.energi.anker)
                     }
                     if let v = d.vekt {
-                        NavigationLink(value: Treningsmål.vekt) { Vektkort(vekt: v) }
+                        NavigationLink { VektSkjerm(vekt: v, reisen: d.reisen) }
+                            label: { Vektkort(vekt: v) }
                             .buttonStyle(Trykkflate())
-                            .id(Treningsmål.vekt)
+                            .id(Treningsmål.vekt.anker)
                     }
                     if let f = d.form, f.sovn != nil || f.hrv != nil || f.hvilepuls != nil {
-                        NavigationLink(value: Treningsmål.restitusjon) { Restitusjonskort(form: f) }
+                        NavigationLink { RestitusjonSkjerm(form: f) } label: { Restitusjonskort(form: f) }
                             .buttonStyle(Trykkflate())
-                            .id(Treningsmål.restitusjon)
+                            .id(Treningsmål.restitusjon.anker)
                     }
 
                     if let r = d.rekorder, !r.isEmpty { Rekordkort(rekorder: r) }
@@ -94,7 +100,7 @@ struct TreningOversikt: View {
         // ingen id å rulle til, og rullingen blir stående og gjøre ingenting.
         .onChange(of: lager.data != nil, initial: true) { _, finnes in
             guard finnes, let m = Testskjerm.treningsrull else { return }
-            lenke.scrollTo(m, anchor: .top)
+            lenke.scrollTo(m.anker, anchor: .top)
         }
         }
     }
@@ -109,10 +115,33 @@ struct TreningOversikt: View {
     }
 }
 
-/// Hvilke skjermer man kan trykke seg inn til.
+/// Kortene på oversikten, som noe å peke på — **ikke** som navigasjonsverdier.
+///
+/// Den brukes til to ting: `.id()` så CI kan rulle til et bestemt kort, og
+/// `-trening <navn>` så CI kan åpne én detaljskjerm direkte. Navigasjonen i appen
+/// går gjennom vanlige lukkebaserte `NavigationLink`-er, slik de to andre modulene
+/// gjør det. Se `TreningModul` for hvorfor.
 enum Treningsmål: Hashable {
     case uke, form, lop, styrke, energi, vekt, restitusjon, reisen
     case okt(String)
+
+    /// Ankeret CI ruller til. Bevisst en **streng**, ikke `Treningsmål` selv: enum-en
+    /// het en gang det samme som navigasjonsverdiene, og å blande identitetsrom med
+    /// navigasjon i samme hierarki er nøyaktig den slags sammenfall som gjør en feil
+    /// vanskelig å se. Her er det bare et navn på et kort.
+    var anker: String {
+        switch self {
+        case .uke: "kort-uke"
+        case .form: "kort-form"
+        case .lop: "kort-lop"
+        case .styrke: "kort-styrke"
+        case .energi: "kort-energi"
+        case .vekt: "kort-vekt"
+        case .restitusjon: "kort-restitusjon"
+        case .reisen: "kort-reisen"
+        case .okt(let id): "kort-okt-\(id)"
+        }
+    }
 }
 
 // MARK: - i dag

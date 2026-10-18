@@ -6,59 +6,67 @@ import SwiftUI
 /// vedlikehold. Derfor er vekt aldri hovedtallet. Øverst står det som skal bevege seg:
 /// hva man kan gjøre i dag, uka, formen og konkrete råd.
 ///
-/// **v1 var for lukket.** Den viste én skjerm uten interaksjon, og dommen var
-/// treffende: «alt for lite informasjon, kan ikke klikke på noe, ser ikke status på
-/// formen». v2 gjør hvert kort til en inngang.
-///
-/// Men fortsatt **ingen input**: hvert trykk åpner noe å lese, aldri noe å fylle ut.
+/// Fortsatt **ingen input**: hvert trykk åpner noe å lese, aldri noe å fylle ut.
 /// All registrering skjer i chat eller automatisk fra klokke og vekt.
 ///
-/// ## Modulen lager ALDRI sin egen NavigationStack
+/// ## Navigasjon: lukkebaserte lenker, og ingen egen NavigationStack
 ///
-/// Hjemskjermen dytter modulen inn i sin stack. Lager modulen én til, havner de to
-/// inni hverandre — og da tar den ytre imot et verdibasert trykk den ikke har noen
-/// `navigationDestination` for, og spretter helt ut til modulvelgeren. Det var
-/// nøyaktig det som skjedde i v0.10: hvert trykk sendte deg til modullista.
+/// Modulen lager **ikke** en `NavigationStack` — den får en fra hjemskjermen, som
+/// dytter modulen inn i sin. Og lenkene er **lukkebaserte**
+/// (`NavigationLink { Skjerm() }`), ikke verdibaserte.
 ///
-/// Trening er den eneste modulen som bruker `NavigationLink(value:)`, og derfor den
-/// eneste som merket det. De andre dytter visningen rett inn med en lukke.
+/// Begge deler er lært den dyre veien. v2 av modulen brukte
+/// `NavigationLink(value:)` + `navigationDestination(for:)` i sin egen stack. Det er
+/// mønsteret Apple anbefaler, men det oppførte seg galt inne i dette skallet: først
+/// sprettet hvert trykk ut til modulvelgeren, og etter at den indre stacken ble
+/// fjernet, åpnet trykkene modulen i seg selv om og om igjen.
 ///
-/// **Skjermbildene kunne ikke fanget det.** CI starter modulen som rot, uten
-/// hjemskjermen over seg — der var det bare én stack, og alt virket. Feilen bodde i
-/// forholdet mellom modulen og det som ligger utenpå den, og det er nettopp det
-/// testveien hopper over. `teststi` finnes for å holde den veien ærlig: CI må
-/// eksplisitt skaffe stacken modulen ikke eier.
+/// Fantasy og Huset har alltid brukt lukkebaserte lenker, og de har aldri hatt
+/// problemet. Trening var den eneste modulen med verdibasert navigasjon, og den
+/// eneste som var ødelagt. Da er det riktige å gjøre som de to andre — ikke å
+/// fortsette å justere på et mønster som har feilet to ganger i akkurat dette
+/// hierarkiet.
+///
+/// Prisen er at `Treningsmål` ikke lenger er en navigasjonsverdi. Den lever videre
+/// som en ren identifikator for CI.
+///
+/// ## Hva CI faktisk ser — og ikke ser
+///
+/// `-trening <navn>` rendrer én detaljskjerm **som rot**, ikke som en dytting. Det
+/// gir samme innhold i skjermbildet, men betyr at **CI ikke lenger tester
+/// navigasjonen i det hele tatt**. Det er en reell svakhet, og den skal stå
+/// skrevet her framfor å bli oppdaget på nytt: skjermbildene beviser at skjermene
+/// ser riktige ut, ikke at man kommer til dem.
 struct TreningModul: View {
     let api: API
-    /// Kun CI. Appen sender aldri noe her — stien eies av hjemskjermen.
-    var teststi: Binding<NavigationPath>?
+    /// Kun CI. Appen sender aldri noe her.
+    var testmål: Treningsmål?
     @State private var lager: TreningLager
     @Environment(\.scenePhase) private var scenefase
 
-    init(api: API, teststi: Binding<NavigationPath>? = nil) {
+    init(api: API, testmål: Treningsmål? = nil) {
         self.api = api
-        self.teststi = teststi
+        self.testmål = testmål
         _lager = State(initialValue: TreningLager(api: api))
     }
 
     var body: some View {
-        TreningOversikt(lager: lager)
-            .navigationDestination(for: Treningsmål.self) { detalj($0) }
-            .refreshable { await lager.last() }
-            // Holder dataene ferske mens skjermen er fremme; stopper av seg selv når
-            // den forsvinner, fordi oppgaven kanselleres.
-            .task {
-                // CI åpner en detaljskjerm direkte. Først NÅR dataene finnes — en skjerm
-                // som dyttes tom, fylles aldri, fordi innholdet fanges i det den dyttes.
-                if let teststi, let m = Testskjerm.treningsmål {
-                    await lager.last()
-                    if lager.data != nil { teststi.wrappedValue.append(m) }
-                }
-                await lager.følg()
+        Group {
+            // Detaljskjermen bygges først når dataene finnes — en skjerm som
+            // rendres tom, fylles aldri, fordi innholdet fanges i det den bygges.
+            if let m = testmål, lager.data != nil {
+                detalj(m)
+            } else {
+                TreningOversikt(lager: lager)
             }
-            .onChange(of: scenefase) { _, ny in
-                if ny == .active { Task { await lager.last() } }
-            }
+        }
+        .refreshable { await lager.last() }
+        // Holder dataene ferske mens skjermen er fremme; stopper av seg selv når den
+        // forsvinner, fordi oppgaven kanselleres.
+        .task { await lager.følg() }
+        .onChange(of: scenefase) { _, ny in
+            if ny == .active { Task { await lager.last() } }
+        }
     }
 
     @ViewBuilder private func detalj(_ mål: Treningsmål) -> some View {
@@ -80,16 +88,15 @@ struct TreningModul: View {
 
 /// Verten CI bruker når modulen startes direkte med `-skjerm trening`.
 ///
-/// Den finnes fordi modulen ikke lenger eier noen stack. I appen kommer stacken fra
-/// hjemskjermen; her må testveien stille med sin egen — og det er med vilje synlig,
-/// så ingen senere legger en stack inn i modulen igjen «fordi CI trenger det».
+/// Den finnes fordi modulen ikke eier noen stack. I appen kommer stacken fra
+/// hjemskjermen; her må testveien stille med sin egen — synlig, i stedet for at
+/// modulen lager en «fordi CI trenger det».
 struct Treningsvert: View {
     let api: API
-    @State private var sti = NavigationPath()
 
     var body: some View {
-        NavigationStack(path: $sti) {
-            TreningModul(api: api, teststi: $sti)
+        NavigationStack {
+            TreningModul(api: api, testmål: Testskjerm.treningsmål)
         }
     }
 }
