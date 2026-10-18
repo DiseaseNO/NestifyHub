@@ -31,13 +31,17 @@ struct Reiseskjerm: View {
 
     /// Startpunktet er selvrapportert. Det vises med tilde og som anslag — et tall man
     /// husker er ikke det samme som et tall man har målt, og forskjellen skal være synlig.
-    private var overskrift: some View {
+    @ViewBuilder private var overskrift: some View {
         let start = reisen.merker?.first { $0.type == "start" }
-        let fra = Trening.tall(start?.kg) ?? "–"
-        let til = Trening.tall(vekt?.siste?.kg) ?? "–"
+        let fra = Trening.tall(start?.kg)
+        let til = Trening.tall(vekt?.siste?.kg)
         let anslag = start?.erAnslag == true
-        return VStack(alignment: .leading, spacing: 4) {
-            Text("Fra \(anslag ? "~" : "")\(fra) til \(til) kg")
+        VStack(alignment: .leading, spacing: 4) {
+            // «Fra – til – kg» er verre enn ingen overskrift. Mangler tallene,
+            // sier vi det skjermen faktisk handler om i stedet.
+            Text(fra != nil && til != nil
+                 ? "Fra \(anslag ? "~" : "")\(fra!) til \(til!) kg"
+                 : "Hele reisen")
                 .font(.system(size: 22, weight: .light))
                 .foregroundStyle(Farge.tekst)
             if let d = vekt?.dagerISonen, d > 0 {

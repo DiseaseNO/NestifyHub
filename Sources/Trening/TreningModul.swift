@@ -17,7 +17,11 @@ struct TreningModul: View {
     let api: API
     @State private var lager: TreningLager
     /// Settes bare av CI, så skjermbildet dekker Reisen uten et simulert trykk.
-    @State private var visReisen = Testskjerm.reisen
+    ///
+    /// Settes FØRST når dataene er hentet. Første utgave satte den ved oppstart, og
+    /// da ble destinasjonen bygget mens `lager.data` fortsatt var nil — skjermen ble
+    /// dyttet tom og fyltes aldri, fordi innholdet fanges i det den dyttes.
+    @State private var visReisen = false
     @Environment(\.scenePhase) private var scenefase
 
     init(api: API) {
@@ -60,14 +64,18 @@ struct TreningModul: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Farge.flate, for: .navigationBar)
             .navigationDestination(isPresented: $visReisen) {
-                if let r = lager.data?.reisen {
-                    Reiseskjerm(reisen: r, vekt: lager.data?.vekt)
-                }
+                Reiseskjerm(reisen: lager.data?.reisen ?? .tom, vekt: lager.data?.vekt)
             }
             .refreshable { await lager.last() }
             // Friskner opp så lenge skjermen er fremme; stopper av seg selv når den
             // forsvinner, fordi oppgaven kanselleres.
-            .task { await lager.følg() }
+            .task {
+                if Testskjerm.reisen {
+                    await lager.last()
+                    visReisen = lager.data?.reisen != nil
+                }
+                await lager.følg()
+            }
             .onChange(of: scenefase) { _, ny in
                 if ny == .active { Task { await lager.last() } }
             }

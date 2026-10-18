@@ -145,6 +145,10 @@ struct Treningsdata: Decodable {
         let punkter: [Punkt]?
         let merker: [Merke]?
 
+        /// Brukes bare når destinasjonen bygges før dataene finnes. Skjermen viser
+        /// da overskriften sin framfor ingenting — en blank skjerm ser ødelagt ut.
+        static let tom = Reisen(punkter: nil, merker: nil)
+
         struct Merke: Decodable, Identifiable {
             let type: String?
             let dato: String?
