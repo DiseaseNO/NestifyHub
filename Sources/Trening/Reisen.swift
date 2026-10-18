@@ -72,21 +72,26 @@ struct Reiseskjerm: View {
                 }
                 ForEach(reisen.merker ?? []) { m in
                     if let d = Trening.dato(m.dato), let v = m.kg {
+                        // Mindre og dempet: merkene ANNOTERER kurven. Hvite prikker
+                        // var det lyseste på skjermen og ropte høyere enn dataene.
                         PointMark(x: .value("Dato", d), y: .value("kg", v))
-                            .symbolSize(90)
-                            .foregroundStyle(m.erAnslag ? Farge.dempet : Farge.tekst)
+                            .symbolSize(70)
+                            .foregroundStyle(m.erAnslag ? Farge.dempet : Farge.aksent)
                         // Anslaget stiples, så det ikke leses som en måling.
                         if m.erAnslag {
                             RuleMark(y: .value("kg", v))
-                                .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                                .foregroundStyle(Farge.dempet.opacity(0.6))
+                                .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 4]))
+                                .foregroundStyle(Farge.dempet.opacity(0.35))
                         }
                     }
                 }
             }
             .chartYScale(domain: .automatic(includesZero: false))
             .chartXAxis {
-                AxisMarks { _ in
+                // Ett merke per år. Uten `stride` plasserer Charts tikkene fritt, og
+                // da kan samme årstall stå to ganger — det leses som en feil.
+                AxisMarks(values: .stride(by: .year)) { _ in
+                    AxisGridLine().foregroundStyle(Farge.strek.opacity(0.5))
                     AxisValueLabel(format: .dateTime.year())
                         .font(.system(size: 9)).foregroundStyle(Farge.dempet)
                 }
