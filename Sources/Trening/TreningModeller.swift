@@ -489,9 +489,13 @@ struct Treningsdata: Decodable {
         /// Hovedbudskapet, ferdig formulert av kilden. Vises **ordrett**. Appen lager
         /// aldri sin egen vurdering av hvordan uka går.
         let mangler: String?
-        /// Samme budskap på maks ~16 tegn, til widgeten. «Styrke + løp»,
-        /// «Mangler løp», «2 økter til», «I boks». Ferdig formulert av kilden —
-        /// appen forkorter aldri `mangler` selv.
+        /// Samme budskap, kort nok for en widget. Ferdig formulert av kilden — appen
+        /// forkorter aldri `mangler` selv.
+        ///
+        /// Verdisettet er bekreftet av kilden 19.10.2026, lengste er 14 tegn:
+        /// «Styrke + løp», «Mangler styrke», «Mangler løp», «1 økt til»,
+        /// «2/3 økter til», «I boks». Blir en ny verdi lengre, varsles det på
+        /// forhånd. Widgeten skalerer uansett ned til 80 % og brekker til to linjer.
         let manglerKort: String?
         let sistOkt: String?
 

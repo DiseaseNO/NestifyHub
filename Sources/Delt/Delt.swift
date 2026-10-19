@@ -251,7 +251,8 @@ extension Delt {
         var styrke: Int?
         var lop: Int?
         var godkjent: Bool?
-        /// Kort status, maks ~16 tegn. Ferdig formulert av kilden.
+        /// Kort status, lengste kjente verdi er 14 tegn («Mangler styrke»).
+        /// Ferdig formulert av kilden; widgeten forkorter aldri selv.
         var manglerKort: String?
         /// Ukas siste dag, ren kalenderdato («2026-10-25»). Brukes til ukeskiftet.
         var ukeSlutt: String?
