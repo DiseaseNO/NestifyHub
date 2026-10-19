@@ -23,7 +23,7 @@ struct NestifyHubApp: App {
                 } else if Testskjerm.widget {
                     // Widgeten kan ikke knipses med simctl. Kulissen rendrer de ekte
                     // visningene i WidgetKits mål, så layouten i det minste blir sett.
-                    Widgetkulisse()
+                    Widgetkulisse(tilfelle: Kulissedata.valgt(Testskjerm.widgettilstand))
                 } else if Testskjerm.trening {
                     // Egen vert: modulen eier ingen NavigationStack, og uten
                     // hjemskjermen over seg finnes det ingen.
@@ -112,6 +112,15 @@ enum Testskjerm {
         UserDefaults.standard.string(forKey: "skjerm") == "widget"
         #else
         false
+        #endif
+    }
+
+    /// `-tilstand <navn>` velger hvilken widget-tilstand kulissen viser.
+    static var widgettilstand: String? {
+        #if DEBUG
+        UserDefaults.standard.string(forKey: "tilstand")
+        #else
+        nil
         #endif
     }
 

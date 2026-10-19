@@ -22,30 +22,41 @@ struct Widgetkulisse: View {
     private let rektangel = CGSize(width: 172, height: 76)
     private let sirkel = CGSize(width: 76, height: 76)
 
+    /// Én tilstand per skjermbilde.
+    ///
+    /// Første utgave la small og medium ved siden av hverandre: 170 + 364 = 534 punkter
+    /// på en skjerm som er 393 bred. Begge ble beskåret, og bildet var ubrukelig til
+    /// det det finnes for. Medium alene er 364 og krever at margen holdes under 15.
+    let tilfelle: Kulissedata.Tilfelle
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                ForEach(Kulissedata.alle, id: \.navn) { k in
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(k.navn).font(.system(size: 11, weight: .semibold))
-                            .tracking(0.6).foregroundStyle(Farge.dempet)
-                        HStack(alignment: .top, spacing: 10) {
-                            ramme(small) { Treningssmall(t: k.tilstand) }
-                            ramme(medium) { Treningsmedium(t: k.tilstand) }
-                        }
-                        HStack(alignment: .top, spacing: 10) {
-                            // Låseskjermen tegnes alltid monokromt av systemet.
-                            ramme(sirkel) { Treningsring(t: k.tilstand) }
-                                .environment(\.colorScheme, .dark)
-                            ramme(rektangel) { Treningsrektangel(t: k.tilstand) }
-                        }
-                    }
+        VStack(alignment: .leading, spacing: 12) {
+            Text(tilfelle.navn).font(.system(size: 11, weight: .semibold))
+                .tracking(0.6).foregroundStyle(Farge.dempet)
+
+            HStack(alignment: .top, spacing: 10) {
+                merket("small") { ramme(small) { Treningssmall(t: tilfelle.tilstand) } }
+                merket("circular") {
+                    ramme(sirkel) { Treningsring(t: tilfelle.tilstand) }
                 }
             }
-            .padding(16)
+            merket("medium") { ramme(medium) { Treningsmedium(t: tilfelle.tilstand) } }
+            merket("rectangular") {
+                ramme(rektangel) { Treningsrektangel(t: tilfelle.tilstand) }
+            }
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Farge.flate)
-        .scrollIndicators(.hidden)
+    }
+
+    private func merket<I: View>(_ navn: String, @ViewBuilder _ innhold: () -> I) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(navn).font(.system(size: 9)).foregroundStyle(Farge.svak)
+            innhold()
+        }
     }
 
     private func ramme<I: View>(_ str: CGSize, @ViewBuilder _ innhold: () -> I) -> some View {
@@ -63,10 +74,15 @@ struct Widgetkulisse: View {
 enum Kulissedata {
     struct Tilfelle { let navn: String; let tilstand: Treningstilstand }
 
-    static var alle: [Tilfelle] {
-        [Tilfelle(navn: "NY UKE", tilstand: Treningstilstand(nyUke, nå: nå)),
-         Tilfelle(navn: "DELVIS — 1 STYRKE, 0 LØP", tilstand: Treningstilstand(delvis, nå: nå)),
-         Tilfelle(navn: "I BOKS", tilstand: Treningstilstand(iBoks, nå: nå))]
+    /// `-tilstand <navn>`. Ukjent eller manglende navn gir «delvis», som er den
+    /// tilstanden med flest felt i bruk.
+    static func valgt(_ navn: String?) -> Tilfelle {
+        switch navn {
+        case "nyuke": Tilfelle(navn: "NY UKE", tilstand: Treningstilstand(nyUke, nå: nå))
+        case "iboks": Tilfelle(navn: "I BOKS", tilstand: Treningstilstand(iBoks, nå: nå))
+        default: Tilfelle(navn: "DELVIS — 1 STYRKE, 0 LØP",
+                          tilstand: Treningstilstand(delvis, nå: nå))
+        }
     }
 
     private static let nå = Date()

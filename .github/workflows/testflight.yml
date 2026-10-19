@@ -278,7 +278,9 @@ jobs:
             done
             # Widgeten kjoeres av systemet i en egen prosess og kan ikke knipses
             # med simctl. Kulissen rendrer de EKTE visningene i WidgetKits maal.
-            knips 10-widget  -server localhost:8443 -token ci -skjerm widget
+            for w in nyuke delvis iboks; do
+              knips "10-widget-$w" -server localhost:8443 -token ci -skjerm widget -tilstand "$w"
+            done
             knips 10-oppgaver -server localhost:8443 -token ci -skjerm hus -fane oppgaver
             knips 11-oversikt -server localhost:8443 -token ci -skjerm hus -fane oversikt
             knips 12-biler    -server localhost:8443 -token ci -skjerm hus -fane biler
