@@ -276,6 +276,9 @@ jobs:
             for m in lop styrke energi vekt restitusjon; do
               knips "10-kort-$m" -server localhost:8443 -token ci -skjerm trening -rull "$m"
             done
+            # Widgeten kjoeres av systemet i en egen prosess og kan ikke knipses
+            # med simctl. Kulissen rendrer de EKTE visningene i WidgetKits maal.
+            knips 10-widget  -server localhost:8443 -token ci -skjerm widget
             knips 10-oppgaver -server localhost:8443 -token ci -skjerm hus -fane oppgaver
             knips 11-oversikt -server localhost:8443 -token ci -skjerm hus -fane oversikt
             knips 12-biler    -server localhost:8443 -token ci -skjerm hus -fane biler

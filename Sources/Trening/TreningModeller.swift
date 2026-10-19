@@ -489,6 +489,10 @@ struct Treningsdata: Decodable {
         /// Hovedbudskapet, ferdig formulert av kilden. Vises **ordrett**. Appen lager
         /// aldri sin egen vurdering av hvordan uka går.
         let mangler: String?
+        /// Samme budskap på maks ~16 tegn, til widgeten. «Styrke + løp»,
+        /// «Mangler løp», «2 økter til», «I boks». Ferdig formulert av kilden —
+        /// appen forkorter aldri `mangler` selv.
+        let manglerKort: String?
         let sistOkt: String?
 
         struct Okter: Decodable { let gjort: Int?; let mal: Int? }
@@ -497,6 +501,7 @@ struct Treningsdata: Decodable {
             case start, slutt, godkjent, okter, styrke, lop, annet, mangler, historikk
             case streakUker = "streak_uker"
             case snitt4Uker = "snitt_4_uker"
+            case manglerKort = "mangler_kort"
             case sistOkt = "sist_okt"
         }
     }
@@ -648,6 +653,14 @@ enum Trening {
         f.minimumFractionDigits = 0
         f.maximumFractionDigits = desimaler
         return f.string(from: NSNumber(value: v))
+    }
+
+    /// ISO-ukenummeret for en ren kalenderdato. Widgeten skriver «Uke 43 · 1/3».
+    static func ukenummer(_ dato: String?) -> Int? {
+        guard let d = Trening.dato(dato) else { return nil }
+        var k = Calendar(identifier: .iso8601)
+        k.locale = norsk
+        return k.component(.weekOfYear, from: d)
     }
 
     /// Klokkeslettet fra et ISO-tidspunkt, til «Oppdatert 14:32».

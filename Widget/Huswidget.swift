@@ -359,5 +359,8 @@ struct Huswidget: Widget {
 
 @main
 struct Widgetpakke: WidgetBundle {
-    var body: some Widget { Huswidget() }
+    var body: some Widget {
+        Huswidget()
+        Treningswidget()
+    }
 }

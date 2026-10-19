@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import WidgetKit
 
 /// Henter og holder treningsdataene.
 ///
@@ -24,6 +25,8 @@ final class TreningLager {
 
     /// Hvor ofte vi spør mens skjermen er fremme.
     private let intervall: Duration = .seconds(60)
+    /// Revisjonen widgeten allerede har fått.
+    private var sistSpeilet: String?
 
     init(api: API) { self.api = api }
 
@@ -46,6 +49,7 @@ final class TreningLager {
         do {
             svar = try await api.hent(Treningssvar.self, "/api/trening/visning")
             feil = nil
+            speilTilWidget()
         } catch {
             // En avbrutt forespørsel er ikke en feil — den skjer hver gang man bytter
             // skjerm mens noe er underveis.
@@ -54,6 +58,37 @@ final class TreningLager {
             // skjermen for tall som fortsatt er gyldige.
             if svar == nil { feil = beskriv(error) }
         }
+    }
+
+    /// Legger igjen det widgeten trenger, og ber den tegne seg på nytt.
+    ///
+    /// **Bare når revisjonen faktisk er ny.** En hendelsesstrøm kan sende det samme
+    /// igjen etter en reconnect, og `reloadAllTimelines` koster av et budsjett iOS
+    /// ikke forteller oss størrelsen på — ber man for ofte, får man færre
+    /// oppdateringer, ikke flere.
+    ///
+    /// Widgeten dekoder aldri hele svaret selv; se `Delt.Treningsbilde` for hvorfor.
+    private func speilTilWidget() {
+        guard let revisjon = svar?.kilde?.revisjon, revisjon != sistSpeilet else { return }
+        sistSpeilet = revisjon
+        guard let d = svar?.data else { return }
+        var b = Delt.Treningsbilde()
+        b.generert = Trening.dato(svar?.kilde?.generert ?? d.generert)
+        b.streakUker = d.uke?.streakUker
+        b.gjort = d.uke?.okter?.gjort
+        b.mal = d.uke?.okter?.mal
+        b.styrke = d.uke?.styrke
+        b.lop = d.uke?.lop
+        b.godkjent = d.uke?.godkjent
+        b.manglerKort = d.uke?.manglerKort
+        b.ukeSlutt = d.uke?.slutt
+        b.ukenummer = Trening.ukenummer(d.uke?.start)
+        b.forslag = d.iDag?.forslag
+        b.sovnTimer = d.kontekst?.sovnTimer
+        b.readinessScore = d.form?.readiness?.score.map { Int($0) }
+        b.readinessNiva = d.form?.readiness?.niva
+        Delt.lagre(b)
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     /// Skiller «kom ikke fram» fra «kom fram, men kunne ikke leses».
@@ -145,7 +180,11 @@ final class TreningLager {
                 if linje.isEmpty {                       // tom linje = hendelsen er slutt
                     if !kropp.isEmpty, let d = kropp.data(using: .utf8),
                        let nytt = try? JSONDecoder().decode(Treningssvar.self, from: d) {
-                        await MainActor.run { self.svar = nytt; self.feil = nil }
+                        await MainActor.run {
+                            self.svar = nytt
+                            self.feil = nil
+                            self.speilTilWidget()
+                        }
                     }
                     kropp = ""
                     continue

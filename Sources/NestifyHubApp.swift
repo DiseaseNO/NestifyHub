@@ -20,6 +20,10 @@ struct NestifyHubApp: App {
             Group {
                 if !api.erKlar {
                     Paring(api: api)
+                } else if Testskjerm.widget {
+                    // Widgeten kan ikke knipses med simctl. Kulissen rendrer de ekte
+                    // visningene i WidgetKits mål, så layouten i det minste blir sett.
+                    Widgetkulisse()
                 } else if Testskjerm.trening {
                     // Egen vert: modulen eier ingen NavigationStack, og uten
                     // hjemskjermen over seg finnes det ingen.
@@ -97,6 +101,15 @@ enum Testskjerm {
     static var tilTropp: Bool {
         #if DEBUG
         UserDefaults.standard.bool(forKey: "tropp")
+        #else
+        false
+        #endif
+    }
+
+    /// `-skjerm widget` rendrer treningswidgeten i appen, i tre tilstander.
+    static var widget: Bool {
+        #if DEBUG
+        UserDefaults.standard.string(forKey: "skjerm") == "widget"
         #else
         false
         #endif

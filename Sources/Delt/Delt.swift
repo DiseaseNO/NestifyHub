@@ -221,3 +221,143 @@ enum Delt {
         }
     }
 }
+
+// MARK: - trening
+
+extension Delt {
+    private static var treningsfil: URL? { mappe?.appendingPathComponent("treningsbilde.json") }
+
+    /// Det treningswidgeten viser — og **ikke noe mer**.
+    ///
+    /// Widgeten dekoder bevisst ikke `/api/trening/visning` slik appen gjør. Det svaret
+    /// er et levende skjema som utvides flere ganger om dagen, og 18.10.2026 holdt det
+    /// med ett felt som skiftet type til at hele skjermen ble stående tom. En widget som
+    /// er avhengig av å forstå hele svaret, arver den skjørheten — og en tom widget på
+    /// hjemskjermen er verre enn en tom skjerm inne i appen, fordi ingen har bedt om å
+    /// se den.
+    ///
+    /// Derfor dette: appen leser svaret, plukker ut de få tallene widgeten trenger, og
+    /// legger dem igjen her. Alt er valgfritt og har standardverdi, så et bilde skrevet
+    /// av en eldre app-versjon fortsatt kan leses.
+    struct Treningsbilde: Codable {
+        /// Kildens eget tidsstempel. Brukes til «kl. HH:MM» når bildet er gammelt.
+        var generert: Date?
+        /// Når appen skrev det. Avgjør om widgeten selv bør hente på nytt.
+        var skrevet: Date = Date()
+
+        var streakUker: Int?
+        var gjort: Int?
+        var mal: Int?
+        var styrke: Int?
+        var lop: Int?
+        var godkjent: Bool?
+        /// Kort status, maks ~16 tegn. Ferdig formulert av kilden.
+        var manglerKort: String?
+        /// Ukas siste dag, ren kalenderdato («2026-10-25»). Brukes til ukeskiftet.
+        var ukeSlutt: String?
+        var ukenummer: Int?
+
+        /// Én setning om i dag. Vises bare på medium.
+        var forslag: String?
+        var sovnTimer: Double?
+        var readinessScore: Int?
+        /// Norsk nivå fra `form.readiness.niva`. **Ikke** `kontekst.readiness_niva` —
+        /// den er Garmins rå engelske kode.
+        var readinessNiva: String?
+
+        /// Satt når appen ikke er paret. Da skal widgeten si det, ikke vise nuller.
+        var uparet: Bool = false
+
+        /// Sann når bildet er fra en uke som er over.
+        ///
+        /// En widget kan bli stående i timer. Uten dette ville den vist «3/3 · I boks»
+        /// mandag morgen, for en uke som var ferdig — og det er en gratulasjon for noe
+        /// man ikke har gjort ennå.
+        func gammelUke(_ nå: Date = Date()) -> Bool {
+            guard let s = ukeSlutt else { return false }
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "nb_NO")
+            f.dateFormat = "yyyy-MM-dd"
+            guard let slutt = f.date(from: s) else { return false }
+            return Calendar.current.startOfDay(for: nå) > Calendar.current.startOfDay(for: slutt)
+        }
+    }
+
+    static func lagre(_ t: Treningsbilde) {
+        guard let treningsfil, let data = try? JSONEncoder().encode(t) else { return }
+        try? data.write(to: treningsfil, options: .atomic)
+    }
+
+    static func trening() -> Treningsbilde? {
+        guard let treningsfil, let d = try? Data(contentsOf: treningsfil) else { return nil }
+        return try? JSONDecoder().decode(Treningsbilde.self, from: d)
+    }
+
+    /// Henter et ferskt bilde direkte fra serveren.
+    ///
+    /// Widgeten kaller denne når appen ikke har vært åpen på en stund. Den dekoder
+    /// **bare de feltene bildet trenger**, hver for seg: et nytt eller endret felt
+    /// lenger inne i svaret skal ikke kunne tømme widgeten.
+    static func hentTrening() async -> Treningsbilde? {
+        guard let t = tilgang(),
+              let u = URL(string: "https://\(t.vert)/api/trening/visning") else { return nil }
+        var rq = URLRequest(url: u)
+        rq.setValue("Bearer \(t.token)", forHTTPHeaderField: "Authorization")
+        rq.timeoutInterval = 15
+        guard let (d, svar) = try? await URLSession.shared.data(for: rq),
+              (svar as? HTTPURLResponse)?.statusCode == 200,
+              let rot = try? JSONSerialization.jsonObject(with: d) as? [String: Any]
+        else { return nil }
+        return bilde(av: (rot["data"] as? [String: Any]) ?? rot)
+    }
+
+    /// Plukker ut widget-feltene fra et ferdig parset svar.
+    ///
+    /// `JSONSerialization` framfor `Decodable` med vilje: her er det ingen struktur å
+    /// bryte. Et felt som mangler eller har feil type gir `nil` for akkurat det feltet,
+    /// og resten står.
+    static func bilde(av data: [String: Any]) -> Treningsbilde {
+        var b = Treningsbilde()
+        let uke = data["uke"] as? [String: Any] ?? [:]
+        b.generert = iso(data["generert"] as? String)
+        b.streakUker = uke["streak_uker"] as? Int
+        if let o = uke["okter"] as? [String: Any] {
+            b.gjort = o["gjort"] as? Int
+            b.mal = o["mal"] as? Int
+        }
+        b.styrke = uke["styrke"] as? Int
+        b.lop = uke["lop"] as? Int
+        b.godkjent = uke["godkjent"] as? Bool
+        b.manglerKort = uke["mangler_kort"] as? String
+        b.ukeSlutt = uke["slutt"] as? String
+        b.ukenummer = ukenummer(uke["start"] as? String)
+        b.forslag = (data["i_dag"] as? [String: Any])?["forslag"] as? String
+        b.sovnTimer = (data["kontekst"] as? [String: Any])?["sovn_timer"] as? Double
+        if let r = (data["form"] as? [String: Any])?["readiness"] as? [String: Any] {
+            b.readinessScore = r["score"] as? Int
+            b.readinessNiva = r["niva"] as? String
+        }
+        return b
+    }
+
+    private static func iso(_ s: String?) -> Date? {
+        guard let s else { return nil }
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f.date(from: s) ?? {
+            f.formatOptions = [.withInternetDateTime]
+            return f.date(from: s)
+        }()
+    }
+
+    private static func ukenummer(_ start: String?) -> Int? {
+        guard let start else { return nil }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "nb_NO")
+        f.dateFormat = "yyyy-MM-dd"
+        guard let d = f.date(from: start) else { return nil }
+        var k = Calendar(identifier: .iso8601)
+        k.locale = Locale(identifier: "nb_NO")
+        return k.component(.weekOfYear, from: d)
+    }
+}
