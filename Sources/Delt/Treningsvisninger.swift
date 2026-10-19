@@ -191,19 +191,24 @@ struct Treningsmedium: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    if let f = t.forslag, !f.isEmpty {
-                        Text(f).font(.system(size: 12)).foregroundStyle(Farge.tekst)
-                            .lineLimit(3).minimumScaleFactor(0.85)
-                            .fixedSize(horizontal: false, vertical: true)
+                // Høyre halvdel tegnes bare når den har noe å si. Rett etter et
+                // ukeskifte finnes verken forslag eller kontekst, og en tom kolonne
+                // ser ut som noe som ikke lastet — ikke som noe som ikke finnes.
+                if harHøyre {
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let f = t.forslag, !f.isEmpty {
+                            Text(f).font(.system(size: 12)).foregroundStyle(Farge.tekst)
+                                .lineLimit(3).minimumScaleFactor(0.85)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                        if let k = kontekst {
+                            Text(k).font(.system(size: 10)).foregroundStyle(Farge.dempet)
+                                .lineLimit(1).minimumScaleFactor(0.8)
+                        }
                     }
-                    Spacer(minLength: 0)
-                    if let k = kontekst {
-                        Text(k).font(.system(size: 10)).foregroundStyle(Farge.dempet)
-                            .lineLimit(1).minimumScaleFactor(0.8)
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
             Fremdrift(gjort: t.gjort, mal: t.mal)
             if let k = t.klokke {
@@ -211,6 +216,10 @@ struct Treningsmedium: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
+    }
+
+    private var harHøyre: Bool {
+        !(t.forslag ?? "").isEmpty || kontekst != nil
     }
 
     /// Søvn og readiness på én grå linje. Bakgrunn, ikke vurdering — og hver del
