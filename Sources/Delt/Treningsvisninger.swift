@@ -210,6 +210,10 @@ struct Treningsmedium: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+            // Uten denne klumper innholdet seg øverst når høyre halvdel mangler, og
+            // fremdriftslinja havner midt i flata. Den skal ligge i bunnen — samme
+            // sted som på small, uansett hvor mye det er å vise.
+            Spacer(minLength: 0)
             Fremdrift(gjort: t.gjort, mal: t.mal)
             if let k = t.klokke {
                 Text(k).font(.system(size: 9)).foregroundStyle(Farge.dempet)
