@@ -20,10 +20,10 @@ struct NestifyHubApp: App {
             Group {
                 if !api.erKlar {
                     Paring(api: api)
-                } else if Testskjerm.widget {
+                } else if let kulisse = Testskjerm.widgetkulisse {
                     // Widgeten kan ikke knipses med simctl. Kulissen rendrer de ekte
                     // visningene i WidgetKits mål, så layouten i det minste blir sett.
-                    Widgetkulisse(tilfelle: Kulissedata.valgt(Testskjerm.widgettilstand))
+                    kulisse
                 } else if Testskjerm.trening {
                     // Egen vert: modulen eier ingen NavigationStack, og uten
                     // hjemskjermen over seg finnes det ingen.
@@ -106,21 +106,22 @@ enum Testskjerm {
         #endif
     }
 
-    /// `-skjerm widget` rendrer treningswidgeten i appen, i tre tilstander.
-    static var widget: Bool {
+    /// `-skjerm widget -tilstand nyuke|delvis|iboks` rendrer treningswidgeten i appen.
+    ///
+    /// Returnerer en ferdig `AnyView`, ikke en `Bool`, og hele kroppen ligger inne i
+    /// `#if DEBUG`. Det er med vilje: `Widgetkulisse` er selv DEBUG-only, og da må
+    /// **hvert eneste sted som nevner den** være det også. Første utgave spurte
+    /// `Testskjerm.widget` i en `else if` og bygde kulissen der — testbryteren var
+    /// DEBUG-sikret, men navnet `Widgetkulisse` sto igjen i Release og fantes ikke.
+    ///
+    /// Simulator-jobben bygger Debug og var grønn. Det var arkiveringen som røk.
+    static var widgetkulisse: AnyView? {
         #if DEBUG
-        UserDefaults.standard.string(forKey: "skjerm") == "widget"
+        guard UserDefaults.standard.string(forKey: "skjerm") == "widget" else { return nil }
+        let tilstand = UserDefaults.standard.string(forKey: "tilstand")
+        return AnyView(Widgetkulisse(tilfelle: Kulissedata.valgt(tilstand)))
         #else
-        false
-        #endif
-    }
-
-    /// `-tilstand <navn>` velger hvilken widget-tilstand kulissen viser.
-    static var widgettilstand: String? {
-        #if DEBUG
-        UserDefaults.standard.string(forKey: "tilstand")
-        #else
-        nil
+        return nil
         #endif
     }
 

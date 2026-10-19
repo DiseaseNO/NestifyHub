@@ -145,6 +145,31 @@ jobs:
       # hjemme. Vi prøver den ekte veien først med kort tålmodighet — den dagen den
       # åpnes, bytter kjøringen over av seg selv og bruker live data. Svarer den ikke,
       # faller vi tilbake på øyeblikksbildet, og ingenting stopper opp.
+      # Debug og Release er to forskjellige bygg. 19.10.2026 var denne jobben grønn
+      # mens arkiveringen røk: en DEBUG-only kulisse ble kalt fra kode som også
+      # kompileres i Release, og navnet fantes ikke der. Feilen kostet et tagget bygg.
+      #
+      # Her kompileres Release UTEN signering — ingen kontakt med Apple, ingen
+      # sertifikater, bare kompilatoren. Den fanger nøyaktig den klassen feil.
+      - name: Kompiler Release (uten signering)
+        run: |
+          if ! xcodebuild build \
+            -project NestifyHub.xcodeproj \
+            -scheme NestifyHub \
+            -sdk iphonesimulator \
+            -configuration Release \
+            -derivedDataPath dd-release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_STYLE=Manual > release.log 2>&1; then
+              echo "::group::kompilatorfeil i Release"
+              grep -E "error:" release.log | sed 's|.*/Sources/|Sources/|' | sort -u | head -40
+              echo "::endgroup::"
+              exit 1
+          fi
+          echo "Release kompilerer"
+
       - name: Svarer hjemmeserveren?
         env:
           CI_VERT: ${{ secrets.CI_VERT }}
